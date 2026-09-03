@@ -195,6 +195,15 @@ export interface DashboardStats {
   >;
 }
 
+export interface RecordCounts {
+  counts: Record<string, number>;
+  groups: Array<{
+    group: string;
+    items: Array<{ key: string; label: string }>;
+  }>;
+  generatedAt: string;
+}
+
 export interface ImportJob {
   id: string;
   entity:

@@ -6,6 +6,7 @@ import {
   Grid,
   Link,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -17,6 +18,7 @@ import {
 import { paymentsApi } from '../api/payments';
 import { payrollApi } from '../api/payroll';
 import { attendanceApi } from '../api/attendance';
+import { statsApi } from '../api/stats';
 import { money } from '../format';
 import { HR_READ_ROLES } from '../types';
 import { useAuth } from '../auth/AuthContext';
@@ -56,6 +58,13 @@ export function DashboardPage() {
     queryFn: () => attendanceApi.summary(thisMonth()),
     enabled: showHr,
   });
+  const countsQuery = useQuery({
+    queryKey: ['record-counts'],
+    queryFn: statsApi.counts,
+    staleTime: 5 * 60_000,
+  });
+
+  const recordCounts = countsQuery.data;
 
   if (isLoading) return <CircularProgress />;
   if (isError || !data)
@@ -147,6 +156,63 @@ export function DashboardPage() {
             </Grid>
           </Grid>
         </>
+      )}
+
+      <Stack
+        direction="row"
+        sx={{ alignItems: 'baseline', gap: 1, mb: 1 }}
+      >
+        <Typography variant="h6">Record counts</Typography>
+        {recordCounts && (
+          <Typography variant="caption" color="text.secondary">
+            as of {new Date(recordCounts.generatedAt).toLocaleTimeString()}
+          </Typography>
+        )}
+      </Stack>
+      {countsQuery.isLoading && <CircularProgress size={24} sx={{ mb: 3 }} />}
+      {countsQuery.isError && (
+        <Typography color="text.secondary" sx={{ mb: 3 }}>
+          Could not load record counts.
+        </Typography>
+      )}
+      {recordCounts && (
+        <Box sx={{ mb: 3 }}>
+          {recordCounts.groups.map((g) => (
+            <Box key={g.group} sx={{ mb: 2 }}>
+              <Typography
+                variant="subtitle2"
+                color="text.secondary"
+                sx={{ mb: 1 }}
+              >
+                {g.group}
+              </Typography>
+              <Grid container spacing={2}>
+                {g.items.map((it) => {
+                  const n = recordCounts.counts[it.key] ?? -1;
+                  return (
+                    <Grid
+                      key={it.key}
+                      size={{ xs: 6, sm: 4, md: 3, lg: 2 }}
+                    >
+                      <Paper sx={{ p: 2 }}>
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          noWrap
+                        >
+                          {it.label}
+                        </Typography>
+                        <Typography variant="h5">
+                          {n < 0 ? '—' : n.toLocaleString('en-IN')}
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            </Box>
+          ))}
+        </Box>
       )}
 
       <Typography variant="h6" gutterBottom>

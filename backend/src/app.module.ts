@@ -20,6 +20,7 @@ import { PortalModule } from './portal/portal.module';
 import { FieldModule } from './field/field.module';
 import { PatientsModule } from './patients/patients.module';
 import { PharmacyModule } from './pharmacy/pharmacy.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PharmacyModule } from './pharmacy/pharmacy.module';
     FieldModule,
     PatientsModule,
     PharmacyModule,
+    StatsModule,
   ],
   controllers: [HealthController],
 })
