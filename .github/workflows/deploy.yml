@@ -1,0 +1,316 @@
+name: CI/CD — medical.fleecams.com
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      run_seed:
+        description: "Run the DB seed after migrating (idempotent, guarded)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: medical-cicd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+  APP_ROOT: /opt/alkem-hrms
+  APP_NAME: alkem-hrms-api
+  # served frontend calls the API under the same origin at /api
+  VITE_API_BASE_URL: /api
+
+jobs:
+  ci:
+    name: Build & verify
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: alkem_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # ---- backend ----
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Apply migrations against a throwaway MySQL
+        working-directory: backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          DB_DATABASE: alkem_ci
+          JWT_SECRET: ci-secret
+        run: node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js
+
+      # ---- frontend ----
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in EC2_HOST EC2_USER EC2_SSH_KEY; do
+            [ -z "${!name}" ] && missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing GitHub secret(s): %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Build release bundle
+        env:
+          VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
+        run: |
+          set -euo pipefail
+          rm -rf release
+          mkdir -p release/backend release/frontend
+
+          npm ci --prefix backend
+          npm run build --prefix backend
+
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+
+          cp -R backend/dist                 release/backend/dist
+          cp backend/package.json backend/package-lock.json release/backend/
+          cp -R frontend/dist                release/frontend/dist
+
+          cp scripts/ec2/ecosystem.config.cjs       release/ecosystem.config.cjs
+          cp scripts/ec2/env-utils.sh               release/env-utils.sh
+          cp scripts/ec2/deploy-cleanup.sh          release/deploy-cleanup.sh
+          cp scripts/ec2/install-backend-deps.sh    release/install-backend-deps.sh
+          chmod +x release/deploy-cleanup.sh release/install-backend-deps.sh
+
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          ssh_port="${EC2_SSH_PORT:-22}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$ssh_port" -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload release
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          ssh_port="${EC2_SSH_PORT:-22}"
+          remote="${EC2_USER}@${EC2_HOST}"
+          release_id="${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}"
+
+          # reclaim disk before writing (a full disk breaks mkdir/rsync)
+          ssh -i ~/.ssh/deploy_key -p "$ssh_port" "$remote" \
+            "APP_ROOT='${APP_ROOT}' AGGRESSIVE=1 KEEP_RELEASES=2 bash -s" \
+            < scripts/ec2/deploy-cleanup.sh
+
+          ssh -i ~/.ssh/deploy_key -p "$ssh_port" "$remote" \
+            "mkdir -p '${APP_ROOT}/releases/${release_id}' '${APP_ROOT}/shared'"
+
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -p ${ssh_port}" \
+            release/ "$remote:${APP_ROOT}/releases/${release_id}/"
+
+      - name: Activate release
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          APP_PORT: ${{ secrets.APP_PORT }}
+          RUN_SEED: ${{ github.event.inputs.run_seed }}
+        run: |
+          set -euo pipefail
+          ssh_port="${EC2_SSH_PORT:-22}"
+          remote="${EC2_USER}@${EC2_HOST}"
+          release_id="${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}"
+
+          # --- assemble backend.env locally if the server has none ---
+          shared_status="$(
+            ssh -i ~/.ssh/deploy_key -p "$ssh_port" "$remote" \
+              "test -s '${APP_ROOT}/shared/backend.env' && echo present || echo missing"
+          )"
+
+          if [ "$shared_status" = "missing" ]; then
+            echo "No ${APP_ROOT}/shared/backend.env on the server — creating one."
+            if [ -n "${BACKEND_ENV:-}" ]; then
+              printf '%s\n' "$BACKEND_ENV" > backend.env
+            elif [ -n "${DB_PASSWORD:-}" ] && [ -n "${JWT_SECRET:-}" ]; then
+              {
+                printf 'NODE_ENV=production\n'
+                printf 'PORT=%s\n'          "${APP_PORT:-3005}"
+                printf 'DB_HOST=%s\n'       "${DB_HOST:-127.0.0.1}"
+                printf 'DB_PORT=%s\n'       "${DB_PORT:-3306}"
+                printf 'DB_USERNAME=%s\n'   "${DB_USERNAME:-alkem}"
+                printf 'DB_PASSWORD=%s\n'   "$DB_PASSWORD"
+                printf 'DB_DATABASE=%s\n'   "${DB_DATABASE:-alkem_portal}"
+                printf 'DB_POOL_SIZE=20\n'
+                printf 'JWT_SECRET=%s\n'    "$JWT_SECRET"
+                printf 'JWT_EXPIRES_IN=%s\n' "${JWT_EXPIRES_IN:-8h}"
+                printf 'CORS_ORIGIN=https://medical.fleecams.com\n'
+              } > backend.env
+            else
+              echo "Set the BACKEND_ENV secret (full dotenv) or DB_PASSWORD + JWT_SECRET." >&2
+              exit 1
+            fi
+            scp -i ~/.ssh/deploy_key -P "$ssh_port" backend.env \
+              "$remote:/tmp/alkem-hrms.env"
+            ssh -i ~/.ssh/deploy_key -p "$ssh_port" "$remote" \
+              "install -m 600 /tmp/alkem-hrms.env '${APP_ROOT}/shared/backend.env' && rm -f /tmp/alkem-hrms.env"
+          fi
+
+          ssh -i ~/.ssh/deploy_key -p "$ssh_port" "$remote" \
+            "APP_ROOT='${APP_ROOT}' APP_NAME='${APP_NAME}' RELEASE_ID='${release_id}' RUN_SEED='${RUN_SEED:-false}' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          test -s "$APP_ROOT/shared/backend.env" || {
+            echo "Missing $APP_ROOT/shared/backend.env" >&2; exit 1; }
+
+          ln -sfn "$APP_ROOT/releases/$RELEASE_ID" "$APP_ROOT/current"
+
+          # shellcheck source=/dev/null
+          source "$APP_ROOT/current/env-utils.sh"
+          sanitize_env_file        "$APP_ROOT/shared/backend.env"
+          validate_backend_env_file "$APP_ROOT/shared/backend.env"
+          cp "$APP_ROOT/shared/backend.env" "$APP_ROOT/current/backend/.env"
+
+          APP_ROOT="$APP_ROOT" RELEASE_ID="$RELEASE_ID" KEEP_RELEASES=2 \
+            bash "$APP_ROOT/current/deploy-cleanup.sh"
+          APP_ROOT="$APP_ROOT" BACKEND_DIR="$APP_ROOT/current/backend" \
+            bash "$APP_ROOT/current/install-backend-deps.sh"
+
+          cd "$APP_ROOT/current/backend"
+          node -e "require('reflect-metadata'); require('typeorm'); console.log('deps ok')"
+
+          echo "Running migrations..."
+          node ./node_modules/typeorm/cli.js migration:run -d dist/data-source.js
+
+          if [ "${RUN_SEED:-false}" = "true" ]; then
+            echo "Running seed (idempotent)..."
+            node dist/seed.js
+          fi
+
+          app_port="$(read_env_var "$APP_ROOT/current/backend/.env" PORT || true)"
+          app_port="${app_port:-3005}"
+
+          # take the port back deterministically
+          pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
+          port_pids=""
+          if command -v lsof >/dev/null 2>&1; then
+            port_pids="$(lsof -ti tcp:"$app_port" -sTCP:LISTEN 2>/dev/null | sort -u || true)"
+          elif command -v fuser >/dev/null 2>&1; then
+            port_pids="$(fuser "${app_port}/tcp" 2>/dev/null | tr -s ' ' '\n' | sort -u || true)"
+          fi
+          if [ -n "$port_pids" ]; then
+            echo "Port ${app_port} held by ${port_pids} — clearing."
+            kill $port_pids 2>/dev/null || true; sleep 2; kill -9 $port_pids 2>/dev/null || true
+          fi
+
+          export APP_ROOT APP_NAME
+          pm2 start "$APP_ROOT/current/ecosystem.config.cjs" --only "$APP_NAME" --update-env
+          pm2 save
+
+          for attempt in $(seq 1 30); do
+            if curl -sf --max-time 3 "http://127.0.0.1:${app_port}/api/health" >/dev/null 2>&1; then
+              echo "API healthy on :${app_port} (attempt ${attempt})"
+              exit 0
+            fi
+            status="$(pm2 jlist 2>/dev/null | node -e 'let s="";try{const a=JSON.parse(require("fs").readFileSync(0));const p=a.find(x=>x.name===process.env.APP_NAME);s=p?p.pm2_env.status:"none"}catch(e){};process.stdout.write(s)' || true)"
+            if [ "$status" = "errored" ] || [ "$status" = "stopped" ]; then
+              echo "pm2 process ${APP_NAME} is ${status}" >&2
+              pm2 logs "$APP_NAME" --lines 120 --nostream || true
+              exit 1
+            fi
+            [ "$attempt" -eq 30 ] && { pm2 logs "$APP_NAME" --lines 120 --nostream || true; echo "API did not become healthy" >&2; exit 1; }
+            sleep 2
+          done
+          REMOTE
+
+      - name: Verify public URL
+        run: |
+          set -euo pipefail
+          url="https://medical.fleecams.com"
+          for attempt in $(seq 1 12); do
+            if curl -sf --max-time 15 --location "${url}/api/health" >/dev/null 2>&1; then
+              echo "Verified ${url}/api/health (attempt ${attempt})"
+              exit 0
+            fi
+            echo "waiting for ${url} (${attempt}/12)..."
+            sleep 5
+          done
+          echo "Public verification failed" >&2
+          exit 1
