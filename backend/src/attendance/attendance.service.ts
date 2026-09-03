@@ -20,6 +20,7 @@ import {
   eachDate,
   isWeekOff,
   monthDateRange,
+  normalizeDateStr,
 } from '../common/utils/working-days.util';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
@@ -98,8 +99,10 @@ export class AttendanceService {
         { did: String(query.departmentId) },
       );
     }
-    if (query.from) qb.andWhere('a.date >= :from', { from: query.from });
-    if (query.to) qb.andWhere('a.date <= :to', { to: query.to });
+    const from = query.from ? normalizeDateStr(query.from) : undefined;
+    const to = query.to ? normalizeDateStr(query.to) : undefined;
+    if (from) qb.andWhere('a.date >= :from', { from });
+    if (to) qb.andWhere('a.date <= :to', { to });
     return qb.orderBy('a.date', 'ASC').addOrderBy('a.employeeId', 'ASC').limit(20000).getMany();
   }
 

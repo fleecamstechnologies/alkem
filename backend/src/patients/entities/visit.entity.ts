@@ -12,6 +12,10 @@ import { VisitType } from '../../common/enums/patient.enum';
 @Index('idx_visits_patient_date', ['patientId', 'visitDate', 'id'])
 @Index('idx_visits_doctor_date', ['doctorId', 'visitDate'])
 @Index('idx_visits_date', ['visitDate'])
+// Idempotency key for the bulk visit importer: a patient has at most one
+// encounter at a given timestamp, so re-importing the same history file updates
+// rather than duplicates.
+@Index('uq_visits_patient_visitdate', ['patientId', 'visitDate'], { unique: true })
 export class Visit {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: string;

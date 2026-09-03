@@ -25,6 +25,13 @@ import { useAuth } from '../auth/AuthContext';
 
 const monthNow = () => new Date().toISOString().slice(0, 7);
 
+/** Last calendar day of a 'YYYY-MM' month, as 'YYYY-MM-DD'. */
+const monthEnd = (periodMonth: string) => {
+  const [y, m] = periodMonth.split('-').map(Number);
+  const day = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${periodMonth}-${String(day).padStart(2, '0')}`;
+};
+
 const CELL_COLOR: Record<string, string> = {
   PRESENT: '#e8f5e9',
   ABSENT: '#ffebee',
@@ -56,7 +63,7 @@ export function AttendancePage() {
       }),
   });
   const from = `${periodMonth}-01`;
-  const to = `${periodMonth}-31`;
+  const to = monthEnd(periodMonth);
   const recordsQuery = useQuery({
     queryKey: ['attendance', periodMonth, departmentId],
     queryFn: () =>

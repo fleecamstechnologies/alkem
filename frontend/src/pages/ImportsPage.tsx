@@ -43,8 +43,14 @@ const PATIENT_FIELDS = [
   'code', 'firstName', 'lastName', 'gender', 'dateOfBirth', 'phone', 'altPhone',
   'email', 'bloodGroup', 'maritalStatus', 'addressLine1', 'addressLine2',
   'city', 'state', 'pincode', 'emergencyName', 'emergencyPhone',
-  'assignedDoctorId', 'registrationDate', 'status', 'allergies',
-  'chronicConditions',
+  'assignedDoctorId', 'assignedDoctorCode', 'registrationDate', 'status',
+  'allergies', 'chronicConditions',
+];
+const VISIT_FIELDS = [
+  'patientCode', 'patientId', 'doctorCode', 'doctorId', 'visitDate', 'visitType',
+  'chiefComplaint', 'bpSystolic', 'bpDiastolic', 'pulse', 'temperature',
+  'weightKg', 'heightCm', 'spo2', 'bmi', 'diagnosis', 'icdCodes',
+  'clinicalNotes', 'followUpDate',
 ];
 const DRUG_FIELDS = [
   'code', 'name', 'genericName', 'form', 'strength', 'unit', 'hsnCode',
@@ -62,6 +68,7 @@ const FIELD_MAP: Record<ImportEntity, string[]> = {
   employees: EMPLOYEE_FIELDS,
   attendance: ATTENDANCE_FIELDS,
   patients: PATIENT_FIELDS,
+  visits: VISIT_FIELDS,
   drugs: DRUG_FIELDS,
   doctors: DOCTOR_FIELDS,
 };
@@ -192,6 +199,7 @@ export function ImportsPage() {
               <MenuItem value="employees">Employees</MenuItem>
               <MenuItem value="attendance">Attendance</MenuItem>
               <MenuItem value="patients">Patients</MenuItem>
+              <MenuItem value="visits">Patient history (visits)</MenuItem>
               <MenuItem value="doctors">Doctors</MenuItem>
               <MenuItem value="drugs">Drugs</MenuItem>
             </TextField>
@@ -222,8 +230,11 @@ export function ImportsPage() {
             <code>DOJ</code> all work). Employees need{' '}
             <code>code</code> + <code>firstName</code> + <code>lastName</code> +{' '}
             <code>dateOfJoining</code>; patients need <code>code</code> (UHID) +{' '}
-            <code>firstName</code>/<code>lastName</code>; drugs need{' '}
-            <code>code</code> + <code>name</code>; for payments include{' '}
+            <code>firstName</code>/<code>lastName</code> (add{' '}
+            <code>assignedDoctorCode</code> to link each patient to a doctor);
+            drugs need <code>code</code> + <code>name</code>; patient-history
+            (visits) rows need <code>patientCode</code> + <code>doctorCode</code>{' '}
+            + <code>visitDate</code>; for payments include{' '}
             <code>customerCode</code> (or <code>customerId</code>). Dates must be{' '}
             <code>YYYY-MM-DD</code> (real Excel dates are converted for you). CSV
             uploads also get a per-column mapping picker below.

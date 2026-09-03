@@ -7,6 +7,7 @@ export type ImportEntity =
   | 'employees'
   | 'attendance'
   | 'patients'
+  | 'visits'
   | 'drugs'
   | 'doctors';
 

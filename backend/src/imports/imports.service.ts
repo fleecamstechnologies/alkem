@@ -7,6 +7,7 @@ import { Payment } from '../payments/entities/payment.entity';
 import { Employee } from '../employees/entities/employee.entity';
 import { AttendanceRecord } from '../attendance/entities/attendance-record.entity';
 import { Patient } from '../patients/entities/patient.entity';
+import { Visit } from '../patients/entities/visit.entity';
 import { Drug } from '../pharmacy/entities/drug.entity';
 import { Doctor, DoctorStatus } from '../doctors/entities/doctor.entity';
 import { CustomersService } from '../customers/customers.service';
@@ -31,11 +32,13 @@ import {
   AttendanceSource,
   AttendanceStatus,
 } from '../common/enums/attendance.enum';
-import { Gender, PatientStatus } from '../common/enums/patient.enum';
+import { Gender, PatientStatus, VisitType } from '../common/enums/patient.enum';
 import { DrugForm } from '../common/enums/pharmacy.enum';
 
 const CHUNK_SIZE = 1000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+// A date, or a date with a wall-clock time (what the visit importer accepts).
+const DATETIME = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$/;
 
 /**
  * Common alternate column headers -> canonical field. Keys are normalised
@@ -64,6 +67,20 @@ const HEADER_ALIASES: Record<string, string> = {
   customername: 'name',
   drugname: 'name',
   medicinename: 'name',
+  doctorname: 'name',
+  // linked doctor (patients import) / visit references
+  assigneddoctor: 'assignedDoctorCode',
+  assigneddoctorcode: 'assignedDoctorCode',
+  doctor: 'doctorCode',
+  doctorcode: 'doctorCode',
+  patient: 'patientCode',
+  uhidcode: 'patientCode',
+  visitdatetime: 'visitDate',
+  encounterdate: 'visitDate',
+  complaint: 'chiefComplaint',
+  chiefcomplaint: 'chiefComplaint',
+  notes: 'clinicalNotes',
+  clinicalnotes: 'clinicalNotes',
   // contact
   mobile: 'phone',
   mobileno: 'phone',
@@ -190,6 +207,26 @@ const PATIENT_FIELDS = [
   'chronicConditions',
 ] as const;
 
+// `assignedDoctorCode` is a virtual header — resolved to `assignedDoctorId`
+// before validation, never written as a column.
+const PATIENT_IMPORT_FIELDS = [
+  ...PATIENT_FIELDS, 'assignedDoctorCode',
+] as const;
+
+const VISIT_FIELDS = [
+  'patientCode', 'patientId', 'doctorCode', 'doctorId', 'visitDate', 'visitType',
+  'chiefComplaint', 'bpSystolic', 'bpDiastolic', 'pulse', 'temperature',
+  'weightKg', 'heightCm', 'spo2', 'bmi', 'diagnosis', 'icdCodes',
+  'clinicalNotes', 'followUpDate',
+] as const;
+
+// Real `visits` columns the chunk upsert may touch (no code/id/*Code virtuals).
+const VISIT_UPDATE_COLS = [
+  'visitType', 'chiefComplaint', 'bpSystolic', 'bpDiastolic', 'pulse',
+  'temperature', 'weightKg', 'heightCm', 'spo2', 'bmi', 'diagnosis', 'icdCodes',
+  'clinicalNotes', 'followUpDate', 'doctorId',
+];
+
 const DRUG_FIELDS = [
   'code', 'name', 'genericName', 'form', 'strength', 'unit', 'hsnCode',
   'gstRate', 'mrp', 'purchasePrice', 'reorderLevel', 'rackLocation',
@@ -226,6 +263,11 @@ const CHUNK_CONFIG: Record<ImportEntity, ChunkConfig> = {
     target: Patient,
     updateCols: [...PATIENT_FIELDS].filter((c) => c !== 'code'),
     conflictCols: ['code'],
+  },
+  visits: {
+    target: Visit,
+    updateCols: VISIT_UPDATE_COLS,
+    conflictCols: ['patientId', 'visitDate'],
   },
   drugs: {
     target: Drug,
@@ -284,6 +326,8 @@ export class ImportsService {
         await this.importDrugs(job, filePath, originalName, mapping, options);
       } else if (job.entity === 'doctors') {
         await this.importDoctors(job, filePath, originalName, mapping, options);
+      } else if (job.entity === 'visits') {
+        await this.importVisits(job, filePath, originalName, mapping, options);
       } else {
         await this.importPatients(job, filePath, originalName, mapping, options);
       }
@@ -709,6 +753,7 @@ export class ImportsService {
     mapping: Record<string, string>,
     options: ImportOptions,
   ): Promise<void> {
+    const resolveDoctorId = this.codeResolver(Doctor);
     let buffer: Partial<Patient>[] = [];
     const flush = async () => {
       if (buffer.length === 0) return;
@@ -726,7 +771,20 @@ export class ImportsService {
     for await (const { rowNumber, record } of readRows(filePath, originalName)) {
       job.total += 1;
       job.processed += 1;
-      const mapped = this.mapRecord(record, mapping, PATIENT_FIELDS);
+      const mapped = this.mapRecord(record, mapping, PATIENT_IMPORT_FIELDS);
+      // Resolve a linked-doctor code (e.g. DOCT000123) to its numeric id.
+      if (mapped.assignedDoctorCode && !mapped.assignedDoctorId) {
+        const docId = await resolveDoctorId(mapped.assignedDoctorCode);
+        if (!docId) {
+          this.registry.addError(
+            job,
+            rowNumber,
+            `unknown doctor (${mapped.assignedDoctorCode})`,
+          );
+          continue;
+        }
+        mapped.assignedDoctorId = docId;
+      }
       const v = this.validatePatient(mapped);
       if (!v.ok) {
         this.registry.addError(job, rowNumber, v.error);
@@ -940,7 +998,168 @@ export class ImportsService {
     };
   }
 
+  // ---- visits (patient history) ------------------------------
+
+  private async importVisits(
+    job: ImportJob,
+    filePath: string,
+    originalName: string,
+    mapping: Record<string, string>,
+    options: ImportOptions,
+  ): Promise<void> {
+    const resolvePatientId = this.codeResolver(Patient);
+    const resolveDoctorId = this.codeResolver(Doctor);
+    const touchedPatients = new Set<string>();
+    let buffer: Partial<Visit>[] = [];
+
+    const flush = async () => {
+      if (buffer.length === 0) return;
+      const rows = buffer;
+      buffer = [];
+      try {
+        const r = await this.insertChunk('visits', rows, options.upsert);
+        job.inserted += r.inserted;
+        job.updated += r.updated;
+      } catch {
+        await this.insertRowByRow('visits', rows, options.upsert, job);
+      }
+    };
+
+    for await (const { rowNumber, record } of readRows(filePath, originalName)) {
+      job.total += 1;
+      job.processed += 1;
+      const m = this.mapRecord(record, mapping, VISIT_FIELDS);
+
+      const patientId = m.patientId
+        ? String(Number(m.patientId))
+        : m.patientCode
+          ? await resolvePatientId(m.patientCode)
+          : null;
+      if (!patientId) {
+        this.registry.addError(
+          job,
+          rowNumber,
+          `unknown patient (${m.patientCode ?? m.patientId ?? 'n/a'})`,
+        );
+        continue;
+      }
+      const doctorId = m.doctorId
+        ? String(Number(m.doctorId))
+        : m.doctorCode
+          ? await resolveDoctorId(m.doctorCode)
+          : null;
+      if (!doctorId) {
+        this.registry.addError(
+          job,
+          rowNumber,
+          `unknown doctor (${m.doctorCode ?? m.doctorId ?? 'n/a'})`,
+        );
+        continue;
+      }
+
+      const v = this.validateVisit(m, patientId, doctorId);
+      if (!v.ok) {
+        this.registry.addError(job, rowNumber, v.error);
+        continue;
+      }
+      touchedPatients.add(patientId);
+      buffer.push(v.value);
+      if (buffer.length >= CHUNK_SIZE) await flush();
+    }
+    await flush();
+
+    job.message = 'recomputing patient visit counts…';
+    await this.recomputeVisitStats([...touchedPatients]);
+    job.message = null;
+  }
+
+  private validateVisit(
+    m: Record<string, string>,
+    patientId: string,
+    doctorId: string,
+  ): ValidationResult<Partial<Visit>> {
+    if (!m.visitDate || !DATETIME.test(m.visitDate)) {
+      return {
+        ok: false,
+        error: `visitDate must be YYYY-MM-DD or YYYY-MM-DD HH:MM (got "${m.visitDate ?? ''}")`,
+      };
+    }
+    if (m.visitType && !(m.visitType.toUpperCase() in VisitType)) {
+      return { ok: false, error: `bad visitType "${m.visitType}"` };
+    }
+    for (const n of ['bpSystolic', 'bpDiastolic', 'pulse', 'spo2'] as const) {
+      if (m[n] && !Number.isInteger(Number(m[n]))) {
+        return { ok: false, error: `bad ${n} "${m[n]}"` };
+      }
+    }
+    for (const n of ['temperature', 'weightKg', 'heightCm', 'bmi'] as const) {
+      if (m[n] && Number.isNaN(Number(m[n]))) {
+        return { ok: false, error: `bad ${n} "${m[n]}"` };
+      }
+    }
+    if (m.followUpDate && !DATE.test(m.followUpDate)) {
+      return { ok: false, error: `followUpDate must be YYYY-MM-DD (got "${m.followUpDate}")` };
+    }
+    const int = (s: string | undefined) => (s ? Number(s) : null);
+    return {
+      ok: true,
+      value: {
+        patientId,
+        doctorId,
+        visitDate: new Date(m.visitDate.replace(' ', 'T')),
+        visitType: (m.visitType?.toUpperCase() as VisitType) ?? VisitType.OPD,
+        chiefComplaint: m.chiefComplaint?.slice(0, 500) ?? null,
+        bpSystolic: int(m.bpSystolic),
+        bpDiastolic: int(m.bpDiastolic),
+        pulse: int(m.pulse),
+        temperature: m.temperature ?? null,
+        weightKg: m.weightKg ?? null,
+        heightCm: m.heightCm ?? null,
+        spo2: int(m.spo2),
+        bmi: m.bmi ?? null,
+        diagnosis: m.diagnosis ?? null,
+        icdCodes: m.icdCodes?.slice(0, 255) ?? null,
+        clinicalNotes: m.clinicalNotes ?? null,
+        followUpDate: m.followUpDate ?? null,
+      },
+    };
+  }
+
+  /** Refresh denormalised patients.visitCount / lastVisitAt after a bulk import. */
+  private async recomputeVisitStats(patientIds: string[]): Promise<void> {
+    for (let i = 0; i < patientIds.length; i += 500) {
+      const slice = patientIds.slice(i, i + 500);
+      if (slice.length === 0) continue;
+      await this.dataSource.query(
+        `UPDATE patients p
+           JOIN (
+             SELECT patientId, COUNT(*) AS c, MAX(visitDate) AS mx
+             FROM visits
+             WHERE patientId IN (${slice.map(() => '?').join(',')})
+             GROUP BY patientId
+           ) t ON t.patientId = p.id
+           SET p.visitCount = t.c, p.lastVisitAt = t.mx`,
+        slice,
+      );
+    }
+  }
+
   // ---- shared insert helpers -----------------------------
+
+  /** Cached `code` -> `id` lookup for an entity with a unique `code` column. */
+  private codeResolver(
+    entity: EntityTarget<ObjectLiteral>,
+  ): (code: string) => Promise<string | null> {
+    const cache = new Map<string, string | null>();
+    const repo = this.dataSource.getRepository(entity);
+    return async (code: string) => {
+      if (cache.has(code)) return cache.get(code)!;
+      const found = await repo.findOne({ where: { code }, select: ['id'] });
+      const id = (found?.id as string | undefined) ?? null;
+      cache.set(code, id);
+      return id;
+    };
+  }
 
   private async insertChunk(
     entity: ImportEntity,

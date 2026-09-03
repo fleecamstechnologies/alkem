@@ -30,6 +30,7 @@ const IMPORT_ENTITIES = new Set<ImportEntity>([
   'employees',
   'attendance',
   'patients',
+  'visits',
   'drugs',
   'doctors',
 ]);
@@ -69,7 +70,7 @@ export class ImportsController {
   ) {
     if (!IMPORT_ENTITIES.has(entity as ImportEntity)) {
       throw new BadRequestException(
-        'entity must be customers, payments, employees, attendance, patients, drugs or doctors',
+        'entity must be customers, payments, employees, attendance, patients, visits, drugs or doctors',
       );
     }
     if (!file) throw new BadRequestException('file is required');

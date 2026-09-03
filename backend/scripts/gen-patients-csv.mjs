@@ -1,7 +1,11 @@
 // Generate a large patients CSV for load-testing the Imports module.
 //
-//   node backend/scripts/gen-patients-csv.mjs [rows] [outFile]
+//   node backend/scripts/gen-patients-csv.mjs [rows] [outFile] [doctorCount]
 //   node backend/scripts/gen-patients-csv.mjs 2000000 sample-data/patients-2000000.csv
+//
+// Every row gets an `assignedDoctorCode` (DOCT000001..DOCT<doctorCount>), so
+// import the doctors file first. `doctorCount` defaults to 30000 and must match
+// the doctors CSV you loaded.
 //
 // XLSX can't hold this — a worksheet maxes out at 1,048,576 rows — so the
 // Imports module takes CSV (streamed, up to 512 MB). Headers below are the
@@ -11,6 +15,7 @@ import { argv, stdout } from 'node:process';
 
 const rows = Number(argv[2] ?? 2_000_000);
 const outFile = argv[3] ?? `sample-data/patients-${rows}.csv`;
+const DOCTORS = Number(argv[4] ?? 30_000);
 
 const FIRST = [
   'Aarav','Vivaan','Aditya','Vihaan','Arjun','Sai','Reyansh','Krishna','Ishaan','Rohan',
@@ -42,7 +47,7 @@ const pick = (arr, i) => arr[i % arr.length];
 const HEADERS =
   'code,firstName,lastName,gender,dateOfBirth,phone,altPhone,email,bloodGroup,' +
   'maritalStatus,addressLine1,city,state,pincode,emergencyName,emergencyPhone,' +
-  'registrationDate,status,allergies,chronicConditions\n';
+  'registrationDate,status,allergies,chronicConditions,assignedDoctorCode\n';
 
 const out = createWriteStream(outFile, { encoding: 'utf8', highWaterMark: 1 << 20 });
 out.write(HEADERS);
@@ -68,7 +73,8 @@ function writeBatch() {
       `${marital},${(i % 200) + 1} ${pick(LAST, i)} Road,${city},${state},` +
       `${pin4}${pad((i % 90) + 10, 2)},${fn} ${pick(LAST, i + 1)},` +
       `${i % 3 === 0 ? '9' + pad((200000000 + (i % 799999999)), 9) : ''},` +
-      `${regYr}-${mo}-${da},${pick(STATUS, i)},${pick(ALLERGY, i)},${pick(CHRONIC, i * 5)}\n`;
+      `${regYr}-${mo}-${da},${pick(STATUS, i)},${pick(ALLERGY, i)},${pick(CHRONIC, i * 5)},` +
+      `DOCT${pad((i % DOCTORS) + 1, 6)}\n`;
     ok = out.write(line);
     i += 1;
     if (i % 200_000 === 0) stdout.write(`\r${i.toLocaleString()} / ${rows.toLocaleString()} rows`);

@@ -15,6 +15,23 @@ export function weekOffDays(): Set<number> {
   );
 }
 
+/**
+ * Coerce a 'YYYY-MM-DD' string to a real calendar date, clamping a day that
+ * overflows its month (e.g. '2026-09-31' -> '2026-09-30'). Returns undefined
+ * if the shape is not YYYY-MM-DD or the month is out of range. Guards raw
+ * date-range filters against MySQL's ER_WRONG_VALUE on impossible dates.
+ */
+export function normalizeDateStr(s: string): string | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return undefined;
+  const [, y, mo, d] = m;
+  const month = Number(mo);
+  if (month < 1 || month > 12 || Number(d) < 1) return undefined;
+  const last = new Date(Date.UTC(Number(y), month, 0)).getUTCDate();
+  const day = Math.min(Number(d), last);
+  return `${y}-${mo}-${String(day).padStart(2, '0')}`;
+}
+
 export function daysInMonth(periodMonth: string): number {
   const [y, m] = periodMonth.split('-').map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate();

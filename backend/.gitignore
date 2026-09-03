@@ -8,3 +8,4 @@ coverage/
 sample-data/patients-*.csv
 sample-data/employees-*.csv
 sample-data/doctors-*.csv
+sample-data/visits-*.csv

@@ -22,6 +22,7 @@ import { addMoney } from '../common/utils/money.util';
 import {
   countWorkingDays,
   monthDateRange,
+  normalizeDateStr,
 } from '../common/utils/working-days.util';
 import { CreateCallReportDto } from './field.dto';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
@@ -149,13 +150,15 @@ export class CallReportsService {
       where.push('cr.repEmployeeId = ?');
       args.push(filter.repEmployeeId);
     }
-    if (filter.from) {
+    const from = filter.from ? normalizeDateStr(filter.from) : undefined;
+    const to = filter.to ? normalizeDateStr(filter.to) : undefined;
+    if (from) {
       where.push('cr.callDate >= ?');
-      args.push(filter.from);
+      args.push(from);
     }
-    if (filter.to) {
+    if (to) {
       where.push('cr.callDate <= ?');
-      args.push(filter.to);
+      args.push(to);
     }
     if (filter.kind) {
       where.push('cr.kind = ?');

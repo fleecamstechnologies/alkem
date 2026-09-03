@@ -588,7 +588,7 @@ function NewCallTab({ repId }: { repId: number }) {
 
 function MyCallsTab({ repId }: { repId: number }) {
   const [from, setFrom] = useState(`${monthNow()}-01`);
-  const [to, setTo] = useState(`${monthNow()}-31`);
+  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const q = useQuery({
     queryKey: ['my-calls', repId, from, to],
     queryFn: () =>

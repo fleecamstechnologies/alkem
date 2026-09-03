@@ -203,6 +203,7 @@ export interface ImportJob {
     | 'employees'
     | 'attendance'
     | 'patients'
+    | 'visits'
     | 'drugs'
     | 'doctors';
   status: 'running' | 'completed' | 'failed';

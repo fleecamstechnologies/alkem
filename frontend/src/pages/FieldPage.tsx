@@ -688,7 +688,7 @@ function TourPlansTab() {
 function CallReportsTab({ reps }: { reps: FieldRepRow[] }) {
   const [repId, setRepId] = useState('');
   const [from, setFrom] = useState(`${monthNow()}-01`);
-  const [to, setTo] = useState(`${monthNow()}-31`);
+  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const q = useQuery({
     queryKey: ['field-calls', repId, from, to],
     queryFn: () =>
