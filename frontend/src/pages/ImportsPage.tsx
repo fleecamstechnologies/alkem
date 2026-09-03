@@ -210,12 +210,21 @@ export function ImportsPage() {
           </Stack>
 
           <Typography variant="body2" color="text.secondary">
-            For payments, include either <code>customerId</code> or{' '}
-            <code>customerCode</code>. Patients need a unique <code>code</code>{' '}
-            (UHID) + <code>firstName</code> / <code>lastName</code>; drugs need{' '}
-            <code>code</code> + <code>name</code>. Dates must be{' '}
-            <code>YYYY-MM-DD</code>. XLSX column mapping is auto-detected from
-            the first sheet's header row on the server.
+            The first row must be a <b>header row</b>. Column names are matched to
+            the fields below ignoring case, spaces and punctuation (so{' '}
+            <code>First Name</code>, <code>Employee Code</code>,{' '}
+            <code>DOJ</code> all work). Employees need{' '}
+            <code>code</code> + <code>firstName</code> + <code>lastName</code> +{' '}
+            <code>dateOfJoining</code>; patients need <code>code</code> (UHID) +{' '}
+            <code>firstName</code>/<code>lastName</code>; drugs need{' '}
+            <code>code</code> + <code>name</code>; for payments include{' '}
+            <code>customerCode</code> (or <code>customerId</code>). Dates must be{' '}
+            <code>YYYY-MM-DD</code> (real Excel dates are converted for you). CSV
+            uploads also get a per-column mapping picker below.
+          </Typography>
+
+          <Typography variant="caption" color="text.secondary">
+            <b>{entity} fields:</b> {targetFields.join(', ')}
           </Typography>
 
           {headers.length > 0 && (

@@ -36,6 +36,121 @@ import { DrugForm } from '../common/enums/pharmacy.enum';
 const CHUNK_SIZE = 1000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Common alternate column headers -> canonical field. Keys are normalised
+ * (lower-case, alphanumerics only). An alias is only used when its target field
+ * is valid for the entity being imported.
+ */
+const HEADER_ALIASES: Record<string, string> = {
+  // identity / codes
+  employeecode: 'code',
+  empcode: 'code',
+  staffcode: 'code',
+  employeeno: 'code',
+  empno: 'code',
+  customercode: 'code',
+  patientcode: 'code',
+  uhid: 'code',
+  drugcode: 'code',
+  itemcode: 'code',
+  // names
+  fname: 'firstName',
+  givenname: 'firstName',
+  lname: 'lastName',
+  surname: 'lastName',
+  fullname: 'name',
+  companyname: 'name',
+  customername: 'name',
+  drugname: 'name',
+  medicinename: 'name',
+  // contact
+  mobile: 'phone',
+  mobileno: 'phone',
+  mobilenumber: 'phone',
+  phoneno: 'phone',
+  phonenumber: 'phone',
+  contact: 'phone',
+  contactno: 'phone',
+  contactnumber: 'phone',
+  emailid: 'email',
+  mailid: 'email',
+  emailaddress: 'email',
+  // HR
+  doj: 'dateOfJoining',
+  joiningdate: 'dateOfJoining',
+  dateofjoin: 'dateOfJoining',
+  dateofjoining: 'dateOfJoining',
+  dob: 'dateOfBirth',
+  birthdate: 'dateOfBirth',
+  dateofbirth: 'dateOfBirth',
+  ctc: 'ctcAnnual',
+  annualctc: 'ctcAnnual',
+  ctcannual: 'ctcAnnual',
+  ctcperannum: 'ctcAnnual',
+  department: 'departmentId',
+  dept: 'departmentId',
+  deptid: 'departmentId',
+  designationtitle: 'designation',
+  jobtitle: 'designation',
+  emptype: 'employmentType',
+  typeofemployment: 'employmentType',
+  location: 'workLocation',
+  branch: 'workLocation',
+  worklocationbranch: 'workLocation',
+  // statutory / bank
+  pan: 'panNumber',
+  panno: 'panNumber',
+  pancard: 'panNumber',
+  aadhaar: 'aadhaarNumber',
+  aadhar: 'aadhaarNumber',
+  aadharno: 'aadhaarNumber',
+  aadhaarno: 'aadhaarNumber',
+  uan: 'uanNumber',
+  uanno: 'uanNumber',
+  pf: 'pfNumber',
+  pfno: 'pfNumber',
+  pfnumber: 'pfNumber',
+  esi: 'esiNumber',
+  esic: 'esiNumber',
+  esino: 'esiNumber',
+  esinumber: 'esiNumber',
+  ifsc: 'bankIfsc',
+  ifsccode: 'bankIfsc',
+  accountnumber: 'bankAccountNumber',
+  accountno: 'bankAccountNumber',
+  accno: 'bankAccountNumber',
+  bankaccountno: 'bankAccountNumber',
+  accountname: 'bankAccountName',
+  accountholder: 'bankAccountName',
+  accountholdername: 'bankAccountName',
+  bank: 'bankName',
+  // address
+  address: 'addressLine1',
+  addressline: 'addressLine1',
+  address1: 'addressLine1',
+  address2: 'addressLine2',
+  pin: 'pincode',
+  pincode: 'pincode',
+  zipcode: 'pincode',
+  postalcode: 'pincode',
+  // payments
+  paymentdate: 'paymentDate',
+  txndate: 'paymentDate',
+  amt: 'amount',
+  refno: 'referenceNo',
+  referenceno: 'referenceNo',
+  reference: 'referenceNo',
+  // pharmacy
+  mrp: 'mrp',
+  purchaserate: 'purchasePrice',
+  purchaseprice: 'purchasePrice',
+  gst: 'gstRate',
+  gstrate: 'gstRate',
+  reorderlevel: 'reorderLevel',
+  hsn: 'hsnCode',
+  hsncode: 'hsnCode',
+};
+
 type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 interface ChunkConfig {
@@ -165,18 +280,35 @@ export class ImportsService {
     }
   }
 
-  /** Apply the header->field mapping (identity when no mapping supplied). */
+  /**
+   * Resolve a spreadsheet/CSV column header to a target field.
+   * When an explicit `mapping` is supplied it wins. Otherwise headers are
+   * matched loosely: lower-cased with every non-alphanumeric char removed, so
+   * `Code`, `First Name`, `Date Of Joining`, `EMP CODE` etc. all line up — plus
+   * a table of common alternate names.
+   */
   private mapRecord(
     record: Record<string, string>,
     mapping: Record<string, string>,
     allowed: readonly string[],
   ): Record<string, string> {
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const byNorm = new Map(allowed.map((f) => [norm(f), f]));
+    const resolve = (header: string): string | undefined => {
+      const n = norm(header);
+      if (byNorm.has(n)) return byNorm.get(n);
+      const alias = HEADER_ALIASES[n];
+      return alias && allowed.includes(alias) ? alias : undefined;
+    };
+
     const out: Record<string, string> = {};
     const hasMapping = Object.keys(mapping).length > 0;
     for (const [header, value] of Object.entries(record)) {
-      const field = hasMapping ? mapping[header] : header;
-      if (field && allowed.includes(field) && value !== '') {
-        out[field] = value;
+      const field = hasMapping
+        ? (mapping[header] ?? resolve(header))
+        : resolve(header);
+      if (field && allowed.includes(field) && value !== '' && value != null) {
+        out[field] = String(value).trim();
       }
     }
     return out;
@@ -223,7 +355,10 @@ export class ImportsService {
   private validateCustomer(
     m: Record<string, string>,
   ): ValidationResult<Partial<Customer>> {
-    if (!m.code) return { ok: false, error: 'missing code' };
+    if (Object.keys(m).length === 0) {
+      return { ok: false, error: 'no recognised columns - check the header row matches the field names' };
+    }
+    if (!m.code) return { ok: false, error: 'missing "code" column' };
     if (!m.name) return { ok: false, error: 'missing name' };
     if (m.type && !(m.type in CustomerType)) {
       return { ok: false, error: `bad type "${m.type}"` };
@@ -410,7 +545,10 @@ export class ImportsService {
   private validateEmployee(
     m: Record<string, string>,
   ): ValidationResult<Partial<Employee>> {
-    if (!m.code) return { ok: false, error: 'missing code' };
+    if (Object.keys(m).length === 0) {
+      return { ok: false, error: 'no recognised columns - check the header row matches the field names' };
+    }
+    if (!m.code) return { ok: false, error: 'missing "code" column' };
     if (!m.firstName || !m.lastName) {
       return { ok: false, error: 'missing firstName / lastName' };
     }
@@ -590,7 +728,10 @@ export class ImportsService {
   private validatePatient(
     m: Record<string, string>,
   ): ValidationResult<Partial<Patient>> {
-    if (!m.code) return { ok: false, error: 'missing code' };
+    if (Object.keys(m).length === 0) {
+      return { ok: false, error: 'no recognised columns - check the header row matches the field names' };
+    }
+    if (!m.code) return { ok: false, error: 'missing "code" column' };
     if (!m.firstName || !m.lastName) {
       return { ok: false, error: 'missing firstName / lastName' };
     }
@@ -679,7 +820,10 @@ export class ImportsService {
   private validateDrug(
     m: Record<string, string>,
   ): ValidationResult<Partial<Drug>> {
-    if (!m.code) return { ok: false, error: 'missing code' };
+    if (Object.keys(m).length === 0) {
+      return { ok: false, error: 'no recognised columns - check the header row matches the field names' };
+    }
+    if (!m.code) return { ok: false, error: 'missing "code" column' };
     if (!m.name) return { ok: false, error: 'missing name' };
     if (m.form && !(m.form in DrugForm)) {
       return { ok: false, error: `bad form "${m.form}"` };
