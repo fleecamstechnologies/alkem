@@ -51,6 +51,10 @@ const DRUG_FIELDS = [
   'gstRate', 'mrp', 'purchasePrice', 'reorderLevel', 'rackLocation',
   'scheduleH', 'isActive',
 ];
+const DOCTOR_FIELDS = [
+  'code', 'name', 'speciality', 'registrationNo', 'qualification', 'phone',
+  'email', 'hospitalName', 'city', 'state', 'territory', 'status',
+];
 
 const FIELD_MAP: Record<ImportEntity, string[]> = {
   customers: CUSTOMER_FIELDS,
@@ -59,6 +63,7 @@ const FIELD_MAP: Record<ImportEntity, string[]> = {
   attendance: ATTENDANCE_FIELDS,
   patients: PATIENT_FIELDS,
   drugs: DRUG_FIELDS,
+  doctors: DOCTOR_FIELDS,
 };
 
 function readHeaders(file: File): Promise<string[]> {
@@ -187,6 +192,7 @@ export function ImportsPage() {
               <MenuItem value="employees">Employees</MenuItem>
               <MenuItem value="attendance">Attendance</MenuItem>
               <MenuItem value="patients">Patients</MenuItem>
+              <MenuItem value="doctors">Doctors</MenuItem>
               <MenuItem value="drugs">Drugs</MenuItem>
             </TextField>
             <Button variant="outlined" component="label">

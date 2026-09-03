@@ -3,3 +3,8 @@ dist/
 .env
 *.log
 coverage/
+
+# generated load-test data (see scripts/gen-*-csv.mjs) — do not commit
+sample-data/patients-*.csv
+sample-data/employees-*.csv
+sample-data/doctors-*.csv

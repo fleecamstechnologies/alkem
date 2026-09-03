@@ -7,7 +7,8 @@ export type ImportEntity =
   | 'employees'
   | 'attendance'
   | 'patients'
-  | 'drugs';
+  | 'drugs'
+  | 'doctors';
 
 export const importsApi = {
   async upload(

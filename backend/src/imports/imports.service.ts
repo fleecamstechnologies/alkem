@@ -8,6 +8,7 @@ import { Employee } from '../employees/entities/employee.entity';
 import { AttendanceRecord } from '../attendance/entities/attendance-record.entity';
 import { Patient } from '../patients/entities/patient.entity';
 import { Drug } from '../pharmacy/entities/drug.entity';
+import { Doctor, DoctorStatus } from '../doctors/entities/doctor.entity';
 import { CustomersService } from '../customers/customers.service';
 import {
   ImportEntity,
@@ -195,6 +196,11 @@ const DRUG_FIELDS = [
   'scheduleH', 'isActive',
 ] as const;
 
+const DOCTOR_FIELDS = [
+  'code', 'name', 'speciality', 'registrationNo', 'qualification', 'phone',
+  'email', 'hospitalName', 'city', 'state', 'territory', 'status',
+] as const;
+
 const CHUNK_CONFIG: Record<ImportEntity, ChunkConfig> = {
   customers: {
     target: Customer,
@@ -224,6 +230,11 @@ const CHUNK_CONFIG: Record<ImportEntity, ChunkConfig> = {
   drugs: {
     target: Drug,
     updateCols: [...DRUG_FIELDS].filter((c) => c !== 'code'),
+    conflictCols: ['code'],
+  },
+  doctors: {
+    target: Doctor,
+    updateCols: [...DOCTOR_FIELDS].filter((c) => c !== 'code'),
     conflictCols: ['code'],
   },
 };
@@ -271,6 +282,8 @@ export class ImportsService {
         await this.importAttendance(job, filePath, originalName, mapping, options);
       } else if (job.entity === 'drugs') {
         await this.importDrugs(job, filePath, originalName, mapping, options);
+      } else if (job.entity === 'doctors') {
+        await this.importDoctors(job, filePath, originalName, mapping, options);
       } else {
         await this.importPatients(job, filePath, originalName, mapping, options);
       }
@@ -855,6 +868,74 @@ export class ImportsService {
         rackLocation: m.rackLocation ?? null,
         scheduleH: truthy(m.scheduleH),
         isActive: m.isActive === undefined ? true : truthy(m.isActive),
+      },
+    };
+  }
+
+  // ---- doctors -------------------------------------------------
+
+  private async importDoctors(
+    job: ImportJob,
+    filePath: string,
+    originalName: string,
+    mapping: Record<string, string>,
+    options: ImportOptions,
+  ): Promise<void> {
+    let buffer: Partial<Doctor>[] = [];
+    const flush = async () => {
+      if (buffer.length === 0) return;
+      const rows = buffer;
+      buffer = [];
+      try {
+        const r = await this.insertChunk('doctors', rows, options.upsert);
+        job.inserted += r.inserted;
+        job.updated += r.updated;
+      } catch {
+        await this.insertRowByRow('doctors', rows, options.upsert, job);
+      }
+    };
+
+    for await (const { rowNumber, record } of readRows(filePath, originalName)) {
+      job.total += 1;
+      job.processed += 1;
+      const mapped = this.mapRecord(record, mapping, DOCTOR_FIELDS);
+      const v = this.validateDoctor(mapped);
+      if (!v.ok) {
+        this.registry.addError(job, rowNumber, v.error);
+        continue;
+      }
+      buffer.push(v.value);
+      if (buffer.length >= CHUNK_SIZE) await flush();
+    }
+    await flush();
+  }
+
+  private validateDoctor(
+    m: Record<string, string>,
+  ): ValidationResult<Partial<Doctor>> {
+    if (Object.keys(m).length === 0) {
+      return { ok: false, error: 'no recognised columns - check the header row matches the field names' };
+    }
+    if (!m.code) return { ok: false, error: 'missing "code" column' };
+    if (!m.name) return { ok: false, error: 'missing name' };
+    if (m.status && !(m.status in DoctorStatus)) {
+      return { ok: false, error: `bad status "${m.status}"` };
+    }
+    return {
+      ok: true,
+      value: {
+        code: m.code.slice(0, 40),
+        name: m.name.slice(0, 200),
+        speciality: m.speciality ?? null,
+        registrationNo: m.registrationNo ?? null,
+        qualification: m.qualification ?? null,
+        phone: m.phone ?? null,
+        email: m.email ?? null,
+        hospitalName: m.hospitalName ?? null,
+        city: m.city ?? null,
+        state: m.state ?? null,
+        territory: m.territory ?? null,
+        status: (m.status as DoctorStatus) ?? DoctorStatus.ACTIVE,
       },
     };
   }
