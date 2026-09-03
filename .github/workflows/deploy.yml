@@ -56,9 +56,12 @@ jobs:
             frontend/package-lock.json
 
       # ---- backend ----
+      # npm install (not ci): the committed lock files were generated on Windows,
+      # so platform-specific optional deps (esbuild/rollup/emnapi) differ on the
+      # Linux runner and `npm ci` rejects the lock as out of sync.
       - name: Install backend deps
         working-directory: backend
-        run: npm ci
+        run: npm install --no-audit --no-fund --no-save
 
       - name: Build backend
         working-directory: backend
@@ -78,7 +81,7 @@ jobs:
       # ---- frontend ----
       - name: Install frontend deps
         working-directory: frontend
-        run: npm ci
+        run: npm install --no-audit --no-fund --no-save
 
       - name: Build frontend
         working-directory: frontend
@@ -127,10 +130,10 @@ jobs:
           rm -rf release
           mkdir -p release/backend release/frontend
 
-          npm ci --prefix backend
+          npm install --prefix backend --no-audit --no-fund --no-save
           npm run build --prefix backend
 
-          npm ci --prefix frontend
+          npm install --prefix frontend --no-audit --no-fund --no-save
           npm run build --prefix frontend
 
           cp -R backend/dist                 release/backend/dist
