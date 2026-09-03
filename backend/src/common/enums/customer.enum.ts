@@ -1,0 +1,14 @@
+export enum CustomerType {
+  CHEMIST = 'CHEMIST',
+  STOCKIST = 'STOCKIST',
+  HOSPITAL = 'HOSPITAL',
+  DOCTOR = 'DOCTOR',
+  INSTITUTION = 'INSTITUTION',
+  INDIVIDUAL = 'INDIVIDUAL',
+}
+
+export enum CustomerStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  BLOCKED = 'BLOCKED',
+}

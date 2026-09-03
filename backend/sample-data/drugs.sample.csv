@@ -1,0 +1,16 @@
+code,name,genericName,form,strength,unit,hsnCode,gstRate,mrp,purchasePrice,reorderLevel,rackLocation,scheduleH,isActive
+DRG-IMP-001,Paracetamol 500mg Tablet,Paracetamol,TABLET,500mg,tablet,3004,12,25.50,14.00,200,A1,false,true
+DRG-IMP-002,Amoxicillin 250mg Capsule,Amoxicillin,CAPSULE,250mg,capsule,3004,12,68.00,40.00,150,A2,true,true
+DRG-IMP-003,Azithromycin 500mg Tablet,Azithromycin,TABLET,500mg,tablet,3004,12,110.00,72.00,100,A2,true,true
+DRG-IMP-004,Cetirizine 10mg Tablet,Cetirizine,TABLET,10mg,tablet,3004,12,18.00,9.50,120,A3,false,true
+DRG-IMP-005,Pantoprazole 40mg Tablet,Pantoprazole,TABLET,40mg,tablet,3004,12,95.00,55.00,90,A3,false,true
+DRG-IMP-006,Metformin 500mg Tablet,Metformin,TABLET,500mg,tablet,3004,12,32.00,17.00,180,B1,false,true
+DRG-IMP-007,Amlodipine 5mg Tablet,Amlodipine,TABLET,5mg,tablet,3004,12,28.00,15.00,140,B1,false,true
+DRG-IMP-008,Cough Syrup 100ml,Dextromethorphan,SYRUP,100ml,bottle,3004,12,85.00,52.00,60,C1,false,true
+DRG-IMP-009,Ceftriaxone 1g Injection,Ceftriaxone,INJECTION,1g,vial,3004,12,45.00,28.00,80,D1,true,true
+DRG-IMP-010,ORS Powder Sachet,Oral Rehydration Salts,CONSUMABLE,21g,sachet,3004,5,12.00,6.00,300,C2,false,true
+DRG-IMP-011,Diclofenac Gel 30g,Diclofenac,OINTMENT,30g,tube,3004,12,72.00,44.00,70,C3,false,true
+DRG-IMP-012,Moxifloxacin Eye Drops 5ml,Moxifloxacin,DROPS,5ml,bottle,3004,12,120.00,78.00,50,C3,true,true
+DRG-IMP-013,Insulin Glargine 100IU/ml,Insulin Glargine,INJECTION,3ml,cartridge,3004,5,850.00,620.00,40,D2,true,true
+DRG-IMP-014,Ibuprofen 400mg Tablet,Ibuprofen,TABLET,400mg,tablet,3004,12,35.00,19.00,160,A1,false,true
+DRG-IMP-015,Vitamin D3 60000IU Sachet,Cholecalciferol,CONSUMABLE,60000IU,sachet,3004,12,42.00,25.00,110,C2,false,true

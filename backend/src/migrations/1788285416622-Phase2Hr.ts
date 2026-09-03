@@ -1,0 +1,74 @@
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class Phase2Hr1788285416622 implements MigrationInterface {
+    name = 'Phase2Hr1788285416622'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE \`employee_salary_structure_lines\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`structureId\` bigint NOT NULL, \`componentId\` bigint NOT NULL, \`calculationType\` enum ('FIXED', 'PERCENT_OF_BASIC') NOT NULL, \`value\` decimal(14,2) NOT NULL, \`computedMonthly\` decimal(14,2) NOT NULL DEFAULT '0.00', INDEX \`idx_essl_structure\` (\`structureId\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`salary_components\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`code\` varchar(30) NOT NULL, \`name\` varchar(80) NOT NULL, \`type\` enum ('EARNING', 'DEDUCTION') NOT NULL, \`calculationType\` enum ('FIXED', 'PERCENT_OF_BASIC') NOT NULL DEFAULT 'FIXED', \`defaultValue\` decimal(14,2) NOT NULL DEFAULT '0.00', \`taxable\` tinyint NOT NULL DEFAULT 1, \`active\` tinyint NOT NULL DEFAULT 1, \`system\` tinyint NOT NULL DEFAULT 0, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), UNIQUE INDEX \`uq_salary_components_code\` (\`code\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`payslips\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`payRunId\` bigint NOT NULL, \`employeeId\` bigint NOT NULL, \`periodMonth\` varchar(7) NOT NULL, \`totalDaysInMonth\` int NOT NULL, \`paidDays\` decimal(5,2) NOT NULL, \`lopDays\` decimal(5,2) NOT NULL, \`basic\` decimal(14,2) NOT NULL, \`grossEarnings\` decimal(14,2) NOT NULL, \`totalDeductions\` decimal(14,2) NOT NULL, \`netPay\` decimal(14,2) NOT NULL, \`status\` enum ('GENERATED', 'PAID') NOT NULL DEFAULT 'GENERATED', \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), INDEX \`idx_payslips_period\` (\`periodMonth\`), INDEX \`idx_payslips_run\` (\`payRunId\`), UNIQUE INDEX \`uq_payslips_employee_period\` (\`employeeId\`, \`periodMonth\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`payslip_lines\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`payslipId\` bigint NOT NULL, \`componentCode\` varchar(30) NOT NULL, \`componentName\` varchar(80) NOT NULL, \`type\` enum ('EARNING', 'DEDUCTION') NOT NULL, \`amount\` decimal(14,2) NOT NULL, INDEX \`idx_payslip_lines_payslip\` (\`payslipId\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`pay_runs\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`periodMonth\` varchar(7) NOT NULL, \`status\` enum ('DRAFT', 'PROCESSED', 'APPROVED', 'PAID', 'CANCELLED') NOT NULL DEFAULT 'DRAFT', \`runDate\` date NULL, \`totalGross\` decimal(16,2) NOT NULL DEFAULT '0.00', \`totalDeductions\` decimal(16,2) NOT NULL DEFAULT '0.00', \`totalNet\` decimal(16,2) NOT NULL DEFAULT '0.00', \`employeeCount\` int NOT NULL DEFAULT '0', \`processedByUserId\` varchar(36) NULL, \`approvedByUserId\` varchar(36) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), UNIQUE INDEX \`uq_pay_runs_period\` (\`periodMonth\`), INDEX \`idx_pay_runs_status\` (\`status\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`employee_salary_structures\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`employeeId\` bigint NOT NULL, \`effectiveFrom\` date NOT NULL, \`basicMonthly\` decimal(14,2) NOT NULL, \`grossMonthly\` decimal(14,2) NOT NULL DEFAULT '0.00', \`active\` tinyint NOT NULL DEFAULT 1, \`note\` varchar(255) NULL, \`createdByUserId\` varchar(36) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`idx_ess_employee_effective\` (\`employeeId\`, \`effectiveFrom\`), INDEX \`idx_ess_employee_active\` (\`employeeId\`, \`active\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`employees\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`code\` varchar(40) NOT NULL, \`firstName\` varchar(100) NOT NULL, \`lastName\` varchar(100) NOT NULL, \`email\` varchar(160) NULL, \`phone\` varchar(20) NULL, \`gender\` enum ('MALE', 'FEMALE', 'OTHER') NULL, \`dateOfBirth\` date NULL, \`departmentId\` bigint NULL, \`designation\` varchar(120) NULL, \`employmentType\` enum ('FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN') NOT NULL DEFAULT 'FULL_TIME', \`status\` enum ('ACTIVE', 'ON_LEAVE', 'SUSPENDED', 'TERMINATED') NOT NULL DEFAULT 'ACTIVE', \`dateOfJoining\` date NOT NULL, \`dateOfLeaving\` date NULL, \`reportingManagerId\` bigint NULL, \`workLocation\` varchar(120) NULL, \`bankAccountName\` varchar(120) NULL, \`bankAccountNumber\` varchar(40) NULL, \`bankName\` varchar(120) NULL, \`bankIfsc\` varchar(20) NULL, \`panNumber\` varchar(20) NULL, \`aadhaarNumber\` varchar(20) NULL, \`pfNumber\` varchar(30) NULL, \`uanNumber\` varchar(30) NULL, \`esiNumber\` varchar(30) NULL, \`ctcAnnual\` decimal(14,2) NOT NULL DEFAULT '0.00', \`createdByUserId\` varchar(36) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`deletedAt\` datetime(6) NULL, UNIQUE INDEX \`uq_employees_code\` (\`code\`), UNIQUE INDEX \`uq_employees_email\` (\`email\`), FULLTEXT INDEX \`ft_employees_name\` (\`firstName\`, \`lastName\`), INDEX \`idx_employees_joining\` (\`dateOfJoining\`), INDEX \`idx_employees_manager\` (\`reportingManagerId\`), INDEX \`idx_employees_department\` (\`departmentId\`), INDEX \`idx_employees_status_id\` (\`status\`, \`id\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`doctors\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`code\` varchar(40) NOT NULL, \`name\` varchar(200) NOT NULL, \`speciality\` varchar(120) NULL, \`registrationNo\` varchar(60) NULL, \`qualification\` varchar(120) NULL, \`phone\` varchar(20) NULL, \`email\` varchar(160) NULL, \`hospitalName\` varchar(200) NULL, \`city\` varchar(80) NULL, \`state\` varchar(80) NULL, \`territory\` varchar(80) NULL, \`linkedCustomerId\` bigint NULL, \`status\` enum ('ACTIVE', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE', \`createdByUserId\` varchar(36) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), \`deletedAt\` datetime(6) NULL, UNIQUE INDEX \`uq_doctors_code\` (\`code\`), FULLTEXT INDEX \`ft_doctors_name\` (\`name\`), INDEX \`idx_doctors_territory\` (\`territory\`), INDEX \`idx_doctors_city_state\` (\`city\`, \`state\`), INDEX \`idx_doctors_speciality\` (\`speciality\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`departments\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`name\` varchar(120) NOT NULL, \`code\` varchar(30) NULL, \`headEmployeeId\` bigint NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), UNIQUE INDEX \`uq_departments_name\` (\`name\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`leave_types\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`code\` varchar(20) NOT NULL, \`name\` varchar(80) NOT NULL, \`paid\` tinyint NOT NULL DEFAULT 1, \`annualQuota\` decimal(5,2) NOT NULL DEFAULT '0.00', \`active\` tinyint NOT NULL DEFAULT 1, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), UNIQUE INDEX \`uq_leave_types_code\` (\`code\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`leave_requests\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`employeeId\` bigint NOT NULL, \`leaveTypeId\` bigint NOT NULL, \`fromDate\` date NOT NULL, \`toDate\` date NOT NULL, \`days\` decimal(5,2) NOT NULL, \`halfDay\` tinyint NOT NULL DEFAULT 0, \`reason\` varchar(255) NULL, \`status\` enum ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED') NOT NULL DEFAULT 'PENDING', \`decidedByUserId\` varchar(36) NULL, \`decidedAt\` datetime NULL, \`decisionNote\` varchar(255) NULL, \`createdByUserId\` varchar(36) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`idx_leave_requests_range\` (\`fromDate\`, \`toDate\`), INDEX \`idx_leave_requests_status\` (\`status\`), INDEX \`idx_leave_requests_employee\` (\`employeeId\`, \`fromDate\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`leave_balances\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`employeeId\` bigint NOT NULL, \`leaveTypeId\` bigint NOT NULL, \`year\` int NOT NULL, \`entitled\` decimal(6,2) NOT NULL DEFAULT '0.00', \`used\` decimal(6,2) NOT NULL DEFAULT '0.00', \`pending\` decimal(6,2) NOT NULL DEFAULT '0.00', \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), UNIQUE INDEX \`uq_leave_balances\` (\`employeeId\`, \`leaveTypeId\`, \`year\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`holidays\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`date\` date NOT NULL, \`name\` varchar(120) NOT NULL, UNIQUE INDEX \`uq_holidays_date\` (\`date\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`CREATE TABLE \`attendance_records\` (\`id\` bigint NOT NULL AUTO_INCREMENT, \`employeeId\` bigint NOT NULL, \`date\` date NOT NULL, \`status\` enum ('PRESENT', 'ABSENT', 'ON_LEAVE', 'HALF_DAY', 'HOLIDAY', 'WEEK_OFF') NOT NULL, \`leaveTypeId\` bigint NULL, \`workedHours\` decimal(5,2) NULL, \`source\` enum ('MANUAL', 'IMPORT', 'LEAVE', 'SYSTEM') NOT NULL DEFAULT 'MANUAL', \`note\` varchar(255) NULL, \`createdByUserId\` varchar(36) NULL, \`createdAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6), \`updatedAt\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), INDEX \`idx_attendance_leave_type\` (\`leaveTypeId\`), INDEX \`idx_attendance_date_status\` (\`date\`, \`status\`), UNIQUE INDEX \`uq_attendance_employee_date\` (\`employeeId\`, \`date\`), PRIMARY KEY (\`id\`)) ENGINE=InnoDB`);
+        await queryRunner.query(`ALTER TABLE \`users\` CHANGE \`role\` \`role\` enum ('SUPER_ADMIN', 'FINANCE', 'SALES_MANAGER', 'DATA_ENTRY', 'HR_ADMIN', 'HR_MANAGER', 'VIEWER') NOT NULL`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE \`users\` CHANGE \`role\` \`role\` enum ('SUPER_ADMIN', 'FINANCE', 'SALES_MANAGER', 'DATA_ENTRY', 'VIEWER') NOT NULL`);
+        await queryRunner.query(`DROP INDEX \`uq_attendance_employee_date\` ON \`attendance_records\``);
+        await queryRunner.query(`DROP INDEX \`idx_attendance_date_status\` ON \`attendance_records\``);
+        await queryRunner.query(`DROP INDEX \`idx_attendance_leave_type\` ON \`attendance_records\``);
+        await queryRunner.query(`DROP TABLE \`attendance_records\``);
+        await queryRunner.query(`DROP INDEX \`uq_holidays_date\` ON \`holidays\``);
+        await queryRunner.query(`DROP TABLE \`holidays\``);
+        await queryRunner.query(`DROP INDEX \`uq_leave_balances\` ON \`leave_balances\``);
+        await queryRunner.query(`DROP TABLE \`leave_balances\``);
+        await queryRunner.query(`DROP INDEX \`idx_leave_requests_employee\` ON \`leave_requests\``);
+        await queryRunner.query(`DROP INDEX \`idx_leave_requests_status\` ON \`leave_requests\``);
+        await queryRunner.query(`DROP INDEX \`idx_leave_requests_range\` ON \`leave_requests\``);
+        await queryRunner.query(`DROP TABLE \`leave_requests\``);
+        await queryRunner.query(`DROP INDEX \`uq_leave_types_code\` ON \`leave_types\``);
+        await queryRunner.query(`DROP TABLE \`leave_types\``);
+        await queryRunner.query(`DROP INDEX \`uq_departments_name\` ON \`departments\``);
+        await queryRunner.query(`DROP TABLE \`departments\``);
+        await queryRunner.query(`DROP INDEX \`idx_doctors_speciality\` ON \`doctors\``);
+        await queryRunner.query(`DROP INDEX \`idx_doctors_city_state\` ON \`doctors\``);
+        await queryRunner.query(`DROP INDEX \`idx_doctors_territory\` ON \`doctors\``);
+        await queryRunner.query(`DROP INDEX \`ft_doctors_name\` ON \`doctors\``);
+        await queryRunner.query(`DROP INDEX \`uq_doctors_code\` ON \`doctors\``);
+        await queryRunner.query(`DROP TABLE \`doctors\``);
+        await queryRunner.query(`DROP INDEX \`idx_employees_status_id\` ON \`employees\``);
+        await queryRunner.query(`DROP INDEX \`idx_employees_department\` ON \`employees\``);
+        await queryRunner.query(`DROP INDEX \`idx_employees_manager\` ON \`employees\``);
+        await queryRunner.query(`DROP INDEX \`idx_employees_joining\` ON \`employees\``);
+        await queryRunner.query(`DROP INDEX \`ft_employees_name\` ON \`employees\``);
+        await queryRunner.query(`DROP INDEX \`uq_employees_email\` ON \`employees\``);
+        await queryRunner.query(`DROP INDEX \`uq_employees_code\` ON \`employees\``);
+        await queryRunner.query(`DROP TABLE \`employees\``);
+        await queryRunner.query(`DROP INDEX \`idx_ess_employee_active\` ON \`employee_salary_structures\``);
+        await queryRunner.query(`DROP INDEX \`idx_ess_employee_effective\` ON \`employee_salary_structures\``);
+        await queryRunner.query(`DROP TABLE \`employee_salary_structures\``);
+        await queryRunner.query(`DROP INDEX \`idx_pay_runs_status\` ON \`pay_runs\``);
+        await queryRunner.query(`DROP INDEX \`uq_pay_runs_period\` ON \`pay_runs\``);
+        await queryRunner.query(`DROP TABLE \`pay_runs\``);
+        await queryRunner.query(`DROP INDEX \`idx_payslip_lines_payslip\` ON \`payslip_lines\``);
+        await queryRunner.query(`DROP TABLE \`payslip_lines\``);
+        await queryRunner.query(`DROP INDEX \`uq_payslips_employee_period\` ON \`payslips\``);
+        await queryRunner.query(`DROP INDEX \`idx_payslips_run\` ON \`payslips\``);
+        await queryRunner.query(`DROP INDEX \`idx_payslips_period\` ON \`payslips\``);
+        await queryRunner.query(`DROP TABLE \`payslips\``);
+        await queryRunner.query(`DROP INDEX \`uq_salary_components_code\` ON \`salary_components\``);
+        await queryRunner.query(`DROP TABLE \`salary_components\``);
+        await queryRunner.query(`DROP INDEX \`idx_essl_structure\` ON \`employee_salary_structure_lines\``);
+        await queryRunner.query(`DROP TABLE \`employee_salary_structure_lines\``);
+    }
+
+}

@@ -1,0 +1,6 @@
+code,firstName,lastName,gender,dateOfBirth,phone,email,bloodGroup,city,state,pincode,emergencyName,emergencyPhone,registrationDate,status,allergies,chronicConditions
+UH-IMP-0001,Rohan,Kulkarni,MALE,1988-05-14,9822001100,rohan.k@example.com,B+,Pune,Maharashtra,411001,Sneha Kulkarni,9822001101,2026-01-10,ACTIVE,Penicillin,
+UH-IMP-0002,Meena,Iyer,FEMALE,1975-11-02,9840112233,meena.iyer@example.com,O+,Chennai,Tamil Nadu,600020,Suresh Iyer,9840112234,2026-01-12,ACTIVE,,Hypertension
+UH-IMP-0003,Arjun,Nair,MALE,1995-03-21,9847556677,,AB+,Kochi,Kerala,682016,Latha Nair,9847556678,2026-02-01,ACTIVE,,
+UH-IMP-0004,Priya,Deshmukh,FEMALE,2001-07-09,9011223344,priya.d@example.com,A+,Nagpur,Maharashtra,440010,Anil Deshmukh,9011223345,2026-02-05,ACTIVE,Sulfa drugs,Asthma
+UH-IMP-0005,Vikram,Rao,MALE,1968-12-30,9900112233,vikram.rao@example.com,O-,Bengaluru,Karnataka,560001,Kavya Rao,9900112234,2026-02-11,ACTIVE,,Type 2 Diabetes

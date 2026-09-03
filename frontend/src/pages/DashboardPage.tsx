@@ -1,71 +1,185 @@
-import { useEffect, useState } from 'react';
-import { Box, Grid, Paper, Typography, CircularProgress } from '@mui/material';
-import { apiClient } from '../api/client';
-import type { DashboardSummary } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import { Link as RouterLink } from 'react-router-dom';
+import {
+  Box,
+  CircularProgress,
+  Grid,
+  Link,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material';
+import { paymentsApi } from '../api/payments';
+import { payrollApi } from '../api/payroll';
+import { attendanceApi } from '../api/attendance';
+import { money } from '../format';
+import { HR_READ_ROLES } from '../types';
+import { useAuth } from '../auth/AuthContext';
 
-const TILES: { key: keyof DashboardSummary; label: string; color: string }[] = [
-  { key: 'totalProducts', label: 'Total Products', color: '#1565c0' },
-  { key: 'activeProducts', label: 'Active Products', color: '#2e7d32' },
-  { key: 'totalBatches', label: 'Total Batches', color: '#6a1b9a' },
-  { key: 'qcPending', label: 'QC Pending', color: '#ef6c00' },
-  { key: 'qaPending', label: 'QA Pending', color: '#c62828' },
-  { key: 'released', label: 'Released', color: '#2e7d32' },
-  { key: 'rejected', label: 'Rejected', color: '#b71c1c' },
-  { key: 'openDeviations', label: 'Open Deviations', color: '#ff8f00' },
+const TILES: {
+  key:
+    | 'totalCustomers'
+    | 'activeCustomers'
+    | 'blockedCustomers'
+    | 'paymentsToday';
+  label: string;
+  color: string;
+}[] = [
+  { key: 'totalCustomers', label: 'Total customers', color: '#1565c0' },
+  { key: 'activeCustomers', label: 'Active', color: '#2e7d32' },
+  { key: 'blockedCustomers', label: 'Blocked', color: '#c62828' },
+  { key: 'paymentsToday', label: 'Payments today', color: '#6a1b9a' },
 ];
 
+const thisMonth = () => new Date().toISOString().slice(0, 7);
+
 export function DashboardPage() {
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const showHr = !!user && HR_READ_ROLES.includes(user.role);
 
-  useEffect(() => {
-    apiClient
-      .get<DashboardSummary>('/dashboard/summary')
-      .then((res) => setSummary(res.data))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: paymentsApi.dashboard,
+  });
+  const payrollQuery = useQuery({
+    queryKey: ['payroll-dashboard'],
+    queryFn: payrollApi.dashboard,
+    enabled: showHr,
+  });
+  const attendanceQuery = useQuery({
+    queryKey: ['attendance-dashboard', thisMonth()],
+    queryFn: () => attendanceApi.summary(thisMonth()),
+    enabled: showHr,
+  });
 
-  if (loading) {
-    return <CircularProgress />;
-  }
-
-  if (!summary) {
-    return <Typography>Could not load dashboard.</Typography>;
-  }
+  if (isLoading) return <CircularProgress />;
+  if (isError || !data)
+    return <Typography>Could not load the dashboard.</Typography>;
 
   return (
     <Box>
       <Typography variant="h5" gutterBottom>
-        Executive Dashboard
+        Dashboard
       </Typography>
-      <Grid container spacing={2} sx={{ mb: 4 }}>
-        {TILES.map((tile) => (
-          <Grid key={tile.key} size={{ xs: 12, sm: 6, md: 3 }}>
-            <Paper sx={{ p: 2, borderTop: `4px solid ${tile.color}` }}>
+
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {TILES.map((t) => (
+          <Grid key={t.key} size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, borderTop: `4px solid ${t.color}` }}>
               <Typography variant="body2" color="text.secondary">
-                {tile.label}
+                {t.label}
               </Typography>
-              <Typography variant="h4">{summary[tile.key] as number}</Typography>
+              <Typography variant="h4">
+                {data[t.key].toLocaleString('en-IN')}
+              </Typography>
             </Paper>
           </Grid>
         ))}
       </Grid>
 
-      <Typography variant="h6" gutterBottom>
-        Batches by Status
-      </Typography>
-      <Grid container spacing={2}>
-        {summary.batchesByStatus.map((row) => (
-          <Grid key={row.status} size={{ xs: 12, sm: 6, md: 3 }}>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        {[
+          ['Total outstanding', data.totalOutstanding],
+          ['Invoiced this month', data.invoicedThisMonth],
+          ['Received this month', data.receivedThisMonth],
+        ].map(([label, value]) => (
+          <Grid key={label} size={{ xs: 12, md: 4 }}>
             <Paper sx={{ p: 2 }}>
               <Typography variant="body2" color="text.secondary">
-                {row.status.replaceAll('_', ' ')}
+                {label}
               </Typography>
-              <Typography variant="h5">{row.count}</Typography>
+              <Typography variant="h5">{money(value)}</Typography>
             </Paper>
           </Grid>
         ))}
       </Grid>
+
+      {showHr && payrollQuery.data && (
+        <>
+          <Typography variant="h6" gutterBottom>
+            HR &amp; payroll
+          </Typography>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <Paper sx={{ p: 2, borderTop: '4px solid #00695c' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Headcount
+                </Typography>
+                <Typography variant="h4">
+                  {payrollQuery.data.headcount.toLocaleString('en-IN')}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <Paper sx={{ p: 2, borderTop: '4px solid #ef6c00' }}>
+                <Typography variant="body2" color="text.secondary">
+                  On leave today
+                </Typography>
+                <Typography variant="h4">
+                  {attendanceQuery.data?.onLeaveToday ?? '—'}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {payrollQuery.data.periodMonth} pay run
+                </Typography>
+                <Typography variant="h5">
+                  {payrollQuery.data.currentRun?.status ?? 'not started'}
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid size={{ xs: 6, md: 3 }}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Net payroll (last run)
+                </Typography>
+                <Typography variant="h5">
+                  {money(payrollQuery.data.currentRun?.totalNet ?? '0')}
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+        </>
+      )}
+
+      <Typography variant="h6" gutterBottom>
+        Top customers by outstanding
+      </Typography>
+      <TableContainer component={Paper}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Code</TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>City</TableCell>
+              <TableCell align="right">Outstanding</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {data.topOutstanding.map((c) => (
+              <TableRow key={c.id} hover>
+                <TableCell>{c.code}</TableCell>
+                <TableCell>
+                  <Link component={RouterLink} to={`/customers/${c.id}`}>
+                    {c.name}
+                  </Link>
+                </TableCell>
+                <TableCell>{c.city || '—'}</TableCell>
+                <TableCell align="right">
+                  {money(c.outstandingBalance)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 }

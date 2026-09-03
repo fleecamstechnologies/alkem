@@ -10,6 +10,10 @@ services:
       MYSQL_PASSWORD: alkempassword
     ports:
       - "3309:3306"
+    command:
+      - --max-allowed-packet=64M
+      - --innodb-buffer-pool-size=1G
+      - --innodb-flush-log-at-trx-commit=2
     volumes:
       - mysql-data:/var/lib/mysql
 

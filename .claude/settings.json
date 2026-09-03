@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"BUILD $?\")",
+      "Bash(SEED_CUSTOMERS=3000 SEED_PAYMENTS_PER_CUSTOMER=4 npm run seed)",
+      "Bash(echo \"backend build $?\")",
+      "Bash(grep -rn \"role: UserRole.SUPER_ADMIN,$\\\\|: AuthenticatedUser = {\\\\|AuthenticatedUser = {\" src/)",
+      "Bash(SEED_EMPLOYEES=20 npm run seed)",
+      "Bash(echo \"vite exit $?\")",
+      "Bash(perl -0pi -e 's/  \\\\\\): Promise<User> \\\\{\\\\n    const user = await this\\\\.findById\\\\\\(id\\\\\\);\\\\n    const previous = user\\\\.isActive;/  \\): Promise<SafeUser> {\\\\n    const user = await this.findById\\(id\\);\\\\n    const previous = user.isActive;/; s/  \\\\\\): Promise<User> \\\\{\\\\n    const user = await this\\\\.findById\\\\\\(id\\\\\\);\\\\n    const next = employeeId/  \\): Promise<SafeUser> {\\\\n    const user = await this.findById\\(id\\);\\\\n    const next = employeeId/;' src/users/users.service.ts)",
+      "Bash(sed -i 's/^    return saved;$/    return strip\\(saved\\);/' src/users/users.service.ts)",
+      "Bash(node -e \"const s=require\\('fs'\\).readFileSync\\('src/migrations/1788318990855-Phase5Field.ts','utf8'\\); const c=s.match\\(/CREATE TABLE \\\\`[a-z_]+\\\\`/g\\)||[]; console.log\\('creates:',c.join\\(', '\\)\\); const a=s.match\\(/ALTER TABLE \\\\`[a-z_]+\\\\` ADD/g\\)||[]; console.log\\('adds:',a.join\\(', '\\)\\); const d=s.match\\(/\\(CREATE INDEX|CREATE UNIQUE INDEX\\) \\\\`[A-Za-z0-9_]+\\\\`/g\\)||[]; console.log\\('idx count:',d.length\\); console.log\\('up length', \\(s.match\\(/queryRunner.query/g\\)||[]\\).length\\);\")",
+      "Bash(node -e \"const s=require\\('fs'\\).readFileSync\\('src/migrations/1788318990855-Phase5Field.ts','utf8'\\); const up=s.split\\('public async down'\\)[0]; console.log\\('doctors ADD:', /ALTER TABLE .doctors. ADD .assignedRepEmployeeId/.test\\(up\\)\\); console.log\\('customers ADD:', /ALTER TABLE .customers. ADD .assignedRepEmployeeId/.test\\(up\\)\\); console.log\\('idx_doctors_assigned_rep:', \\(up.match\\(/idx_doctors_assigned_rep/g\\)||[]\\).length\\); console.log\\('idx_customers_assigned_rep_emp:', \\(up.match\\(/idx_customers_assigned_rep_emp/g\\)||[]\\).length\\); const other=up.match\\(/ALTER TABLE \\\\`\\(users|employees|payments|customers|doctors|leave_[a-z]+|attendance_records|departments|salary_components|pay_runs|payslips\\)\\\\`/g\\)||[]; console.log\\('touches existing:', [...new Set\\(other\\)]\\);\")",
+      "Bash(node -e \"const s=require\\('fs'\\).readFileSync\\('src/migrations/1788318990855-Phase5Field.ts','utf8'\\); const up=s.split\\('public async down'\\)[0]; const lines=up.split\\('queryRunner.query\\('\\); lines.forEach\\(l=>{ if\\(/doctors|customers/.test\\(l\\) && /ALTER|INDEX/.test\\(l\\)\\) console.log\\(l.slice\\(0,160\\)\\); }\\);\")",
+      "Bash(curl -s http://localhost:3005/api/health)",
+      "Bash(node -e \"const s=require\\('fs'\\).readFileSync\\('src/migrations/1788322070680-Phase6Patients.ts','utf8'\\); const up=s.split\\('public async down'\\)[0]; console.log\\('CREATE TABLEs:', \\(up.match\\(/CREATE TABLE \\\\`[a-z_]+\\\\`/g\\)||[]\\).join\\(', '\\)\\); console.log\\('users doctorId ADD:', /ALTER TABLE \\\\`users\\\\` ADD \\\\`doctorId\\\\`/.test\\(up\\)\\); console.log\\('uq_users_doctor count:', \\(up.match\\(/uq_users_doctor|IDX_[a-f0-9]+.*doctorId/g\\)||[]\\).length\\); console.log\\('users role CHANGE:', /CHANGE \\\\`role\\\\`.*RECEPTION.*CLINICIAN/.test\\(up\\)\\); console.log\\('total stmts:', \\(up.match\\(/queryRunner.query/g\\)||[]\\).length\\);\")",
+      "Bash(echo \"backend $?\")",
+      "Bash(PORT=3005 timeout 20 node dist/main.js)",
+      "Bash(grep -n \"^Reports: \\\\`payroll\" README.md)",
+      "Bash(curl -s -o /dev/null -w \"API health %{http_code}\\\\n\" http://localhost:3005/api/health)",
+      "Bash(curl -s -o /dev/null -w \"Frontend %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:3005/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"pharmacist@alkem.local\",\"password\":\"ChangeMe123!\"}')",
+      "Bash(node dist/main.js)",
+      "Bash(curl -s -m 5 http://localhost:3005/api/health)",
+      "Bash(grep -iA15 \"error\\\\|exception\")",
+      "Bash(powershell -Command 'Get-CimInstance Win32_Process -Filter \"name='\\\\''node.exe'\\\\''\" | Where-Object { $_.CommandLine -match '\\\\''dist[\\\\/]main\\\\.js'\\\\'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }')",
+      "Bash(node -e \"require\\('./dist/pharmacy/pharmacy.module.js'\\); console.log\\('module loads'\\)\")",
+      "Bash(powershell -Command 'Get-CimInstance Win32_Process -Filter \"name='\\\\''node.exe'\\\\''\" | Where-Object { $_.CommandLine -match '\\\\''dist[\\\\/]main\\\\.js'\\\\'' } | Select-Object ProcessId,CreationDate | Format-Table -Auto')",
+      "Bash(powershell -Command 'Get-NetTCPConnection -LocalPort 3005 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $p = Get-Process -Id $_.OwningProcess; [PSCustomObject]@{ PID=$p.Id; Name=$p.ProcessName; Path=$p.Path } } | Format-List')",
+      "Bash(powershell -Command \"\\(Get-CimInstance Win32_Process -Filter 'ProcessId=18796'\\).CommandLine; Stop-Process -Id 18796 -Force; Start-Sleep 2; 'killed'\")",
+      "Bash(powershell -Command 'Get-NetTCPConnection -LocalPort 3005 -State Listen -EA SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; '\\\\''port cleared'\\\\''')",
+      "Bash(powershell -Command 'Get-NetTCPConnection -LocalPort 3005 -State Listen -EA SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; '\\\\''stopped'\\\\''')"
+    ]
+  }
+}

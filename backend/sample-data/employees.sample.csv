@@ -1,0 +1,6 @@
+code,firstName,lastName,email,phone,designation,employmentType,status,dateOfJoining,departmentId,ctcAnnual
+EMP-IMP-001,Suresh,Nair,suresh.nair@alkem.local,9800011111,Senior Executive,FULL_TIME,ACTIVE,2022-06-01,1,720000
+EMP-IMP-002,Kavita,Rao,kavita.rao@alkem.local,9800022222,Team Lead,FULL_TIME,ACTIVE,2021-03-15,2,960000
+EMP-IMP-003,Imran,Shaikh,imran.shaikh@alkem.local,9800033333,Executive,FULL_TIME,ACTIVE,2023-09-01,3,540000
+EMP-IMP-004,Neha,Gupta,neha.gupta@alkem.local,9800044444,Manager,FULL_TIME,ACTIVE,2020-01-20,4,1200000
+EMP-IMP-005,Arjun,Menon,arjun.menon@alkem.local,,Intern,INTERN,ACTIVE,2025-07-01,7,240000

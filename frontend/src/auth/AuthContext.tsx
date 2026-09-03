@@ -4,7 +4,7 @@ import type { AuthUser } from '../types';
 
 interface AuthContextValue {
   user: AuthUser | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 }
 
@@ -18,12 +18,13 @@ function loadStoredUser(): AuthUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(loadStoredUser());
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<AuthUser> => {
     const response = await apiClient.post('/auth/login', { email, password });
     const { accessToken, user: loggedInUser } = response.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('authUser', JSON.stringify(loggedInUser));
     setUser(loggedInUser);
+    return loggedInUser as AuthUser;
   };
 
   const logout = () => {

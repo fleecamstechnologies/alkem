@@ -1,0 +1,6 @@
+code,name,type,phone,email,city,state,territory,creditLimit,status
+CUST-IMP-001,Rajesh Medical & General Stores,CHEMIST,9820011111,rajesh@example.com,Nagpur,Maharashtra,MH-07,75000,ACTIVE
+CUST-IMP-002,Priya Pharma Distributors Pvt Ltd,STOCKIST,9820022222,priya@example.com,Nashik,Maharashtra,MH-05,250000,ACTIVE
+CUST-IMP-003,City Care Hospital,HOSPITAL,9820033333,accounts@citycare.example,Pune,Maharashtra,MH-12,500000,ACTIVE
+CUST-IMP-004,Dr. Anil Deshmukh Clinic,DOCTOR,9820044444,,Pune,Maharashtra,MH-12,20000,ACTIVE
+CUST-IMP-005,Wellness Institution Trust,INSTITUTION,9820055555,,Mumbai,Maharashtra,MH-01,100000,INACTIVE
