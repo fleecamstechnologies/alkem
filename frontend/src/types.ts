@@ -197,6 +197,7 @@ export interface DashboardStats {
 
 export interface RecordCounts {
   counts: Record<string, number>;
+  highlights: Array<{ key: string; label: string }>;
   groups: Array<{
     group: string;
     items: Array<{ key: string; label: string }>;

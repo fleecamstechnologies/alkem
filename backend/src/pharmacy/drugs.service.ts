@@ -83,22 +83,31 @@ export class DrugsService {
   /** Drug list joined with total on-hand across batches + a reorder flag. */
   async listWithStock(query: QueryDrugsDto) {
     const limit = query.limit ?? 50;
-    const params: unknown[] = [];
+    const whereParams: unknown[] = [];
     const where: string[] = ['1=1'];
 
     if (query.form) {
       where.push('d.form = ?');
-      params.push(query.form);
+      whereParams.push(query.form);
     }
     if (query.isActive !== undefined && query.isActive !== '') {
       where.push('d.isActive = ?');
-      params.push(query.isActive === 'true' || query.isActive === '1' ? 1 : 0);
+      whereParams.push(
+        query.isActive === 'true' || query.isActive === '1' ? 1 : 0,
+      );
     }
     if (query.q) {
       where.push('(d.name LIKE ? OR d.code LIKE ?)');
-      params.push(`%${query.q.trim()}%`, `${query.q.trim()}%`);
+      whereParams.push(`%${query.q.trim()}%`, `${query.q.trim()}%`);
     }
-    params.push(limit);
+    const whereSql = where.join(' AND ');
+    const offset = query.page && query.page > 1 ? (query.page - 1) * limit : 0;
+
+    const [countRow] = await this.dataSource.query(
+      `SELECT COUNT(*) AS c FROM drugs d WHERE ${whereSql}`,
+      whereParams,
+    );
+    const total = Number(countRow?.c ?? 0);
 
     const rows = await this.dataSource.query(
       `SELECT d.id, d.code, d.name, d.genericName, d.form, d.strength, d.unit,
@@ -116,12 +125,12 @@ export class DrugsService {
          FROM drug_batches
          GROUP BY drugId
        ) b ON b.drugId = d.id
-       WHERE ${where.join(' AND ')}
+       WHERE ${whereSql}
        ORDER BY d.name ASC
-       LIMIT ?`,
-      params,
+       LIMIT ? OFFSET ?`,
+      [...whereParams, limit, offset],
     );
-    return { rows, nextCursor: null, total: null, limit };
+    return { rows, nextCursor: null, total, limit };
   }
 
   async findById(id: string): Promise<Drug> {

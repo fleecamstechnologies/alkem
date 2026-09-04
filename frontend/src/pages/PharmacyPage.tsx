@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
-  Autocomplete,
   Box,
   Button,
   Chip,
@@ -21,6 +20,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Tabs,
   TextField,
@@ -28,6 +28,7 @@ import {
 } from '@mui/material';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { pharmacyApi } from '../api/pharmacy';
+import { AsyncSelect } from '../components/AsyncSelect';
 import { DispenseDialog } from '../components/DispenseDialog';
 import { money, todayISO } from '../format';
 import { useAuth } from '../auth/AuthContext';
@@ -46,6 +47,10 @@ function errMsg(e: unknown): string {
       ?.message ?? 'Request failed'
   );
 }
+
+const PAGE_SIZE = 50;
+// `page` (1-based offset) is capped server-side; keep the table in range.
+const MAX_PAGE = 200;
 
 export function PharmacyPage() {
   const { user } = useAuth();
@@ -85,14 +90,24 @@ const DRUG_FORM_VALUES = Object.values(DrugForm);
 function DrugsTab({ canWrite }: { canWrite: boolean }) {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(0);
   const [edit, setEdit] = useState<Drug | null>(null);
   const [creating, setCreating] = useState(false);
 
+  useEffect(() => setPage(0), [q]);
+
   const stockQuery = useQuery({
-    queryKey: ['pharmacy-drugs-stock', q],
-    queryFn: () => pharmacyApi.drugsStock({ q: q || undefined, limit: 200 }),
+    queryKey: ['pharmacy-drugs-stock', q, page],
+    queryFn: () =>
+      pharmacyApi.drugsStock({
+        q: q || undefined,
+        limit: PAGE_SIZE,
+        page: page + 1,
+      }),
+    placeholderData: (prev) => prev,
   });
   const rows: DrugStockRow[] = stockQuery.data?.rows ?? [];
+  const total = stockQuery.data?.total ?? 0;
 
   const closeForm = () => {
     setEdit(null);
@@ -174,12 +189,20 @@ function DrugsTab({ canWrite }: { canWrite: boolean }) {
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                  No drugs.
+                  {stockQuery.isLoading ? 'Loading…' : 'No drugs.'}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={total}
+          page={page}
+          onPageChange={(_, p) => setPage(Math.min(p, MAX_PAGE - 1))}
+          rowsPerPage={PAGE_SIZE}
+          rowsPerPageOptions={[PAGE_SIZE]}
+        />
       </TableContainer>
 
       {(creating || edit) && (
@@ -374,15 +397,19 @@ function DrugFormDialog({
 
 function SuppliersTab({ canWrite }: { canWrite: boolean }) {
   const qc = useQueryClient();
+  const [page, setPage] = useState(0);
   const [edit, setEdit] = useState<Supplier | null>(null);
   const [creating, setCreating] = useState(false);
   const [payFor, setPayFor] = useState<Supplier | null>(null);
 
   const listQuery = useQuery({
-    queryKey: ['pharmacy-suppliers'],
-    queryFn: () => pharmacyApi.suppliers({ limit: 200 }),
+    queryKey: ['pharmacy-suppliers', page],
+    queryFn: () =>
+      pharmacyApi.suppliers({ limit: PAGE_SIZE, page: page + 1 }),
+    placeholderData: (prev) => prev,
   });
   const rows = listQuery.data?.rows ?? [];
+  const total = listQuery.data?.total ?? 0;
   const refresh = () =>
     qc.invalidateQueries({ queryKey: ['pharmacy-suppliers'] });
 
@@ -442,12 +469,20 @@ function SuppliersTab({ canWrite }: { canWrite: boolean }) {
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                  No suppliers.
+                  {listQuery.isLoading ? 'Loading…' : 'No suppliers.'}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={total}
+          page={page}
+          onPageChange={(_, p) => setPage(Math.min(p, MAX_PAGE - 1))}
+          rowsPerPage={PAGE_SIZE}
+          rowsPerPageOptions={[PAGE_SIZE]}
+        />
       </TableContainer>
 
       {(creating || edit) && (
@@ -674,15 +709,24 @@ function SupplierPaymentDialog({
 function GrnTab({ canWrite }: { canWrite: boolean }) {
   const qc = useQueryClient();
   const [status, setStatus] = useState('');
+  const [page, setPage] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
+  useEffect(() => setPage(0), [status]);
+
   const listQuery = useQuery({
-    queryKey: ['pharmacy-grns', status],
+    queryKey: ['pharmacy-grns', status, page],
     queryFn: () =>
-      pharmacyApi.grns({ status: status || undefined, limit: 100 }),
+      pharmacyApi.grns({
+        status: status || undefined,
+        limit: PAGE_SIZE,
+        page: page + 1,
+      }),
+    placeholderData: (prev) => prev,
   });
   const rows: Grn[] = listQuery.data?.rows ?? [];
+  const total = listQuery.data?.total ?? 0;
   const refresh = () => qc.invalidateQueries({ queryKey: ['pharmacy-grns'] });
 
   return (
@@ -757,12 +801,20 @@ function GrnTab({ canWrite }: { canWrite: boolean }) {
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                  No GRNs.
+                  {listQuery.isLoading ? 'Loading…' : 'No GRNs.'}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={total}
+          page={page}
+          onPageChange={(_, p) => setPage(Math.min(p, MAX_PAGE - 1))}
+          rowsPerPage={PAGE_SIZE}
+          rowsPerPageOptions={[PAGE_SIZE]}
+        />
       </TableContainer>
 
       {creating && (
@@ -797,9 +849,6 @@ function CreateGrnDialog({
     id: string;
     label: string;
   } | null>(null);
-  const [supplierOpts, setSupplierOpts] = useState<
-    { id: string; label: string }[]
-  >([]);
   const [invoiceNo, setInvoiceNo] = useState('');
   const [invoiceDate, setInvoiceDate] = useState('');
   const [receivedDate, setReceivedDate] = useState(todayISO());
@@ -815,28 +864,31 @@ function CreateGrnDialog({
     onSuccess: (g) => onClose(g.id),
   });
 
-  const search = async (term: string) => {
-    if (term.trim().length < 1) return;
-    const r = await pharmacyApi.suppliers({ q: term, limit: 10 });
-    setSupplierOpts(
-      r.rows.map((s) => ({ id: s.id, label: `${s.name} (${s.code})` })),
-    );
-  };
-
   return (
     <Dialog open onClose={() => onClose()} fullWidth maxWidth="sm">
       <DialogTitle>New GRN</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {mut.isError && <Alert severity="error">{errMsg(mut.error)}</Alert>}
-          <Autocomplete
-            options={supplierOpts}
-            getOptionLabel={(o) => o.label}
+          <AsyncSelect
+            label="Supplier"
+            source="suppliers"
             value={supplier}
-            onChange={(_, v) => setSupplier(v)}
-            onInputChange={(_, v) => void search(v)}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
-            renderInput={(p) => <TextField {...p} label="Supplier" />}
+            onChange={setSupplier}
+            fetchPage={async ({ q, cursor }) => {
+              const r = await pharmacyApi.suppliers({
+                q: q || undefined,
+                cursor: cursor || undefined,
+                limit: 25,
+              });
+              return {
+                options: r.rows.map((s) => ({
+                  id: s.id,
+                  label: `${s.name} (${s.code})`,
+                })),
+                nextCursor: r.nextCursor,
+              };
+            }}
           />
           <TextField
             label="Invoice no"
@@ -911,25 +963,8 @@ function GrnDetailDialog({
   const grn = grnQuery.data;
   const isDraft = grn?.status === 'DRAFT';
   const [lines, setLines] = useState<GrnLine[] | null>(null);
-  const [drugOpts, setDrugOpts] = useState<
-    { id: string; label: string; mrp: string; purchasePrice: string; gstRate: string }[]
-  >([]);
 
   const editable = lines ?? (isDraft ? [emptyGrnLine()] : []);
-
-  const searchDrugs = async (term: string) => {
-    if (term.trim().length < 2) return;
-    const rows = await pharmacyApi.drugSearch(term);
-    setDrugOpts(
-      rows.map((d) => ({
-        id: d.id,
-        label: `${d.name} (${d.code})`,
-        mrp: d.mrp,
-        purchasePrice: d.purchasePrice,
-        gstRate: d.gstRate,
-      })),
-    );
-  };
 
   const saveItems = useMutation({
     mutationFn: () =>
@@ -1018,12 +1053,12 @@ function GrnDetailDialog({
                 {editable.map((l, i) => (
                   <TableRow key={i}>
                     <TableCell>
-                      <Autocomplete
-                        size="small"
-                        options={drugOpts}
-                        getOptionLabel={(o) => o.label}
+                      <AsyncSelect
+                        label=""
+                        source="grn-drugs"
+                        sx={{ minWidth: 220 }}
                         value={l.drug}
-                        onChange={(_, v) =>
+                        onChange={(v) =>
                           setLines(
                             editable.map((x, xi) =>
                               xi === i
@@ -1041,11 +1076,23 @@ function GrnDetailDialog({
                             ),
                           )
                         }
-                        onInputChange={(_, v) => void searchDrugs(v)}
-                        isOptionEqualToValue={(o, v) => o.id === v.id}
-                        renderInput={(p) => (
-                          <TextField {...p} placeholder="Search" />
-                        )}
+                        fetchPage={async ({ q, cursor }) => {
+                          const r = await pharmacyApi.drugs({
+                            q: q || undefined,
+                            cursor: cursor || undefined,
+                            limit: 25,
+                          });
+                          return {
+                            options: r.rows.map((d) => ({
+                              id: d.id,
+                              label: `${d.name} (${d.code})`,
+                              mrp: d.mrp,
+                              purchasePrice: d.purchasePrice,
+                              gstRate: d.gstRate,
+                            })),
+                            nextCursor: r.nextCursor,
+                          };
+                        }}
                       />
                     </TableCell>
                     {(

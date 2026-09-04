@@ -72,8 +72,23 @@ const GROUPS: { group: string; items: { key: string; label: string; table: strin
 
 const ALL_ITEMS = GROUPS.flatMap((g) => g.items);
 
+/** Extra status-filtered counts, keyed the same way as `counts`. */
+const EXTRA: { key: string; sql: string }[] = [
+  { key: 'patientsActive', sql: `SELECT COUNT(*) AS c FROM \`patients\` WHERE status = 'ACTIVE'` },
+  { key: 'patientsInactive', sql: `SELECT COUNT(*) AS c FROM \`patients\` WHERE status = 'INACTIVE'` },
+];
+
+/** Featured tiles shown as a strip at the top of the dashboard section. */
+const HIGHLIGHTS: { key: string; label: string }[] = [
+  { key: 'patientsActive', label: 'Active patients' },
+  { key: 'patientsInactive', label: 'Inactive patients' },
+  { key: 'employees', label: 'Total employees' },
+  { key: 'doctors', label: 'Total doctors' },
+];
+
 export interface RecordCounts {
   counts: Record<string, number>;
+  highlights: { key: string; label: string }[];
   groups: { group: string; items: { key: string; label: string }[] }[];
   generatedAt: string;
 }
@@ -90,21 +105,25 @@ export class StatsService {
     const cached = await this.cache.get<RecordCounts>(key);
     if (cached) return cached;
 
-    const results = await Promise.all(
-      ALL_ITEMS.map(async ({ key: k, table }) => {
-        try {
-          const rows = await this.dataSource.query(
-            `SELECT COUNT(*) AS c FROM \`${table}\``,
-          );
-          return [k, Number(rows?.[0]?.c ?? 0)] as const;
-        } catch {
-          return [k, -1] as const; // table missing on this env
-        }
-      }),
-    );
+    const run = async (k: string, sql: string) => {
+      try {
+        const rows = await this.dataSource.query(sql);
+        return [k, Number(rows?.[0]?.c ?? 0)] as const;
+      } catch {
+        return [k, -1] as const; // table/column missing on this env
+      }
+    };
+
+    const results = await Promise.all([
+      ...ALL_ITEMS.map(({ key: k, table }) =>
+        run(k, `SELECT COUNT(*) AS c FROM \`${table}\``),
+      ),
+      ...EXTRA.map(({ key: k, sql }) => run(k, sql)),
+    ]);
 
     const payload: RecordCounts = {
       counts: Object.fromEntries(results),
+      highlights: HIGHLIGHTS,
       groups: GROUPS.map((g) => ({
         group: g.group,
         items: g.items.map(({ key: k, label }) => ({ key: k, label })),

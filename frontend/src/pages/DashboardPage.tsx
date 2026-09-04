@@ -177,6 +177,23 @@ export function DashboardPage() {
       )}
       {recordCounts && (
         <Box sx={{ mb: 3 }}>
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            {recordCounts.highlights.map((h) => {
+              const n = recordCounts.counts[h.key] ?? -1;
+              return (
+                <Grid key={h.key} size={{ xs: 6, md: 3 }}>
+                  <Paper sx={{ p: 2, borderTop: '4px solid #1565c0' }}>
+                    <Typography variant="body2" color="text.secondary" noWrap>
+                      {h.label}
+                    </Typography>
+                    <Typography variant="h4">
+                      {n < 0 ? '—' : n.toLocaleString('en-IN')}
+                    </Typography>
+                  </Paper>
+                </Grid>
+              );
+            })}
+          </Grid>
           {recordCounts.groups.map((g) => (
             <Box key={g.group} sx={{ mb: 2 }}>
               <Typography

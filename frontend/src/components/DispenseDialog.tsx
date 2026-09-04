@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   Alert,
-  Autocomplete,
   Box,
   Button,
   Dialog,
@@ -22,6 +21,7 @@ import {
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { pharmacyApi } from '../api/pharmacy';
 import { patientsApi } from '../api/patients';
+import { AsyncSelect } from './AsyncSelect';
 import { money } from '../format';
 
 function errMsg(e: unknown): string {
@@ -69,8 +69,6 @@ export function DispenseDialog({
   const [patient, setPatient] = useState<PatientOpt | null>(
     fixedPatient ?? null,
   );
-  const [patientOpts, setPatientOpts] = useState<PatientOpt[]>([]);
-  const [drugOpts, setDrugOpts] = useState<DrugOpt[]>([]);
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [loadingRx, setLoadingRx] = useState(false);
   const [rxNote, setRxNote] = useState<string | null>(null);
@@ -109,28 +107,6 @@ export function DispenseDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, prescriptionId, fixedPatient?.id]);
-
-  const searchPatients = async (term: string) => {
-    if (term.trim().length < 2) return;
-    const rows = await patientsApi.search(term);
-    setPatientOpts(
-      rows.map((p) => ({
-        id: p.id,
-        label: `${p.firstName} ${p.lastName} (${p.code})`,
-      })),
-    );
-  };
-  const searchDrugs = async (term: string) => {
-    if (term.trim().length < 2) return;
-    const rows = await pharmacyApi.drugSearch(term);
-    setDrugOpts(
-      rows.map((d) => ({
-        id: d.id,
-        label: `${d.name} (${d.code})`,
-        mrp: d.mrp,
-      })),
-    );
-  };
 
   const total = useMemo(
     () =>
@@ -184,16 +160,26 @@ export function DispenseDialog({
               fullWidth
             />
           ) : (
-            <Autocomplete
-              options={patientOpts}
-              getOptionLabel={(o) => o.label}
+            <AsyncSelect
+              label="Patient"
+              source="patients"
+              placeholder="Search name / code"
               value={patient}
-              onChange={(_, v) => setPatient(v)}
-              onInputChange={(_, v) => void searchPatients(v)}
-              isOptionEqualToValue={(o, v) => o.id === v.id}
-              renderInput={(p) => (
-                <TextField {...p} label="Patient" placeholder="Search name / code" />
-              )}
+              onChange={setPatient}
+              fetchPage={async ({ q, cursor }) => {
+                const r = await patientsApi.list({
+                  q: q || undefined,
+                  cursor: cursor || undefined,
+                  limit: 25,
+                });
+                return {
+                  options: r.rows.map((p) => ({
+                    id: p.id,
+                    label: `${p.firstName} ${p.lastName} (${p.code})`,
+                  })),
+                  nextCursor: r.nextCursor,
+                };
+              }}
             />
           )}
 
@@ -219,23 +205,34 @@ export function DispenseDialog({
                 return (
                   <TableRow key={i}>
                     <TableCell>
-                      <Autocomplete
-                        size="small"
-                        options={drugOpts}
-                        getOptionLabel={(o) => o.label}
+                      <AsyncSelect
+                        label=""
+                        source="dispense-drugs"
+                        placeholder="Search drug"
+                        sx={{ minWidth: 240 }}
                         value={l.drug}
-                        onChange={(_, v) =>
+                        onChange={(v) =>
                           setLines((ls) =>
                             ls.map((x, xi) =>
                               xi === i ? { ...x, drug: v } : x,
                             ),
                           )
                         }
-                        onInputChange={(_, v) => void searchDrugs(v)}
-                        isOptionEqualToValue={(o, v) => o.id === v.id}
-                        renderInput={(p) => (
-                          <TextField {...p} placeholder="Search drug" />
-                        )}
+                        fetchPage={async ({ q, cursor }) => {
+                          const r = await pharmacyApi.drugs({
+                            q: q || undefined,
+                            cursor: cursor || undefined,
+                            limit: 25,
+                          });
+                          return {
+                            options: r.rows.map((d) => ({
+                              id: d.id,
+                              label: `${d.name} (${d.code})`,
+                              mrp: d.mrp,
+                            })),
+                            nextCursor: r.nextCursor,
+                          };
+                        }}
                       />
                     </TableCell>
                     <TableCell align="right">

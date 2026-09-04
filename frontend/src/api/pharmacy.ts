@@ -77,6 +77,7 @@ export const pharmacyApi = {
     form?: string;
     isActive?: string;
     limit?: number;
+    page?: number;
   }): Promise<Paginated<DrugStockRow>> =>
     (
       await apiClient.get<Paginated<DrugStockRow>>('/pharmacy/drugs/stock', {
@@ -114,6 +115,7 @@ export const pharmacyApi = {
     isActive?: string;
     limit?: number;
     cursor?: string;
+    page?: number;
   }): Promise<Paginated<Supplier>> =>
     (await apiClient.get<Paginated<Supplier>>('/pharmacy/suppliers', { params }))
       .data,
@@ -152,6 +154,7 @@ export const pharmacyApi = {
     status?: string;
     limit?: number;
     cursor?: string;
+    page?: number;
   }): Promise<Paginated<Grn>> =>
     (await apiClient.get<Paginated<Grn>>('/pharmacy/grns', { params })).data,
   grn: async (id: string): Promise<Grn> =>

@@ -5,6 +5,8 @@ dist/
 coverage/
 
 # generated load-test data (see scripts/gen-*-csv.mjs) — do not commit
+sample-data/customers-*.csv
+sample-data/drugs-*.csv
 sample-data/patients-*.csv
 sample-data/employees-*.csv
 sample-data/doctors-*.csv

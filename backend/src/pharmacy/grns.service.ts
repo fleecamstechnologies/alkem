@@ -50,6 +50,8 @@ export class GrnsService {
     if (query.status) {
       qb.andWhere('g.status = :st', { st: query.status });
     }
+    const total = await qb.clone().getCount();
+
     qb.orderBy('g.id', 'DESC').take(limit);
     if (query.cursor) {
       qb.andWhere('g.id < :cursor', { cursor: query.cursor });
@@ -59,7 +61,7 @@ export class GrnsService {
     const rows = await qb.getMany();
     const nextCursor =
       rows.length === limit ? rows[rows.length - 1].id : null;
-    return { rows, nextCursor, total: null, limit };
+    return { rows, nextCursor, total, limit };
   }
 
   async get(id: string) {

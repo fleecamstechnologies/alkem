@@ -42,10 +42,7 @@ export class SuppliersService {
         likeq: `${query.q.trim()}%`,
       });
     }
-    const hasFilter =
-      !!query.q || (query.isActive !== undefined && query.isActive !== '');
-    let total: number | null = null;
-    if (hasFilter) total = await qb.clone().getCount();
+    const total = await qb.clone().getCount();
 
     qb.orderBy('s.id', 'DESC').take(limit);
     if (query.cursor) {
