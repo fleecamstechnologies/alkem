@@ -138,6 +138,20 @@ balances, and a full month of attendance rows.
 - gzip compression, lean list DTOs, connection pool sized via `DB_POOL_SIZE`.
 - Schema changes go through **TypeORM migrations** (`synchronize` is always off).
 
+## Deployment
+
+Live at **https://medical.fleecams.com**, on VPS `76.13.223.106` (pm2 process
+`alkem-hrms-api`, port 3010, MySQL locally, nginx serving `frontend/dist` +
+proxying `/api`).
+
+Auto-deploy is poll-based, not GitHub Actions: `/opt/alkem-hrms/repo` on the box
+is a real `git clone` (read-only deploy key), and a cron job runs
+`/opt/alkem-hrms/auto-deploy.sh` every 2 minutes. When `origin/main` has moved,
+it pulls, rebuilds whichever of `backend`/`frontend` actually changed, runs
+pending TypeORM migrations, restarts pm2, and reloads nginx — silently, when
+there's nothing new. **Every push to `main` is live within ~2 minutes,
+automatically.** Deploy log: `/opt/alkem-hrms/shared/logs/auto-deploy.log`.
+
 ## API surface
 
 ```
